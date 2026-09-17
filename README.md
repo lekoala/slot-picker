@@ -368,3 +368,10 @@ Then open `demo/index.html` directly, or serve it with `bun run dev`.
 It shows both `columns` and `day` projections, wide and in narrow
 phone-like containers, plus bounded/responsive navigation and the range empty
 state.
+
+The same page is published from `master` at
+<https://lekoala.github.io/slot-picker/> (GitHub Pages serves the repository
+root and redirects to `demo/`). Pages publishes the committed `dist/` bundles,
+so run `bun run build:bundle` and commit `dist/slot-picker.js` /
+`dist/slot-picker.css` whenever `src/` changes; CI rejects a stale bundle.
+

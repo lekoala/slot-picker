@@ -14,6 +14,8 @@ jobs:
           bun-version: 1.4.2
       - run: bun install
       - run: bun run verify
+      - name: Check committed demo bundles are up to date
+        run: git diff --exit-code -- dist/slot-picker.js dist/slot-picker.css
 
   browser:
     runs-on: ubuntu-latest
