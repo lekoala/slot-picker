@@ -15,6 +15,14 @@
   --sp-slot-columns: 3;
   --sp-card-bg: transparent;
   --sp-slot-block-size: 2.75rem;
+  /* Slot colors are their own theming surface so a `data-tone` can recolor a
+     single slot without touching focus or the rest of the picker. */
+  --sp-slot-bg: var(--sp-accent-soft);
+  --sp-slot-fg: var(--sp-fg);
+  --sp-slot-border: transparent;
+  --sp-slot-hover-bg: color-mix(in srgb, var(--sp-accent) 22%, var(--sp-bg));
+  --sp-slot-selected-bg: var(--sp-accent);
+  --sp-slot-selected-fg: var(--sp-accent-fg);
   --sp-nav-size: 2.5rem;
   display: block;
   color: var(--sp-fg);
@@ -157,19 +165,19 @@
 }
 
 .sp-slot {
-  border: 1px solid transparent;
-  background: var(--sp-accent-soft);
-  color: var(--sp-fg);
+  border: 1px solid var(--sp-slot-border);
+  background: var(--sp-slot-bg);
+  color: var(--sp-slot-fg);
   cursor: pointer;
 }
 
 .sp-slot:hover:not(:disabled):not([aria-selected="true"]) {
-  background: color-mix(in srgb, var(--sp-accent) 22%, var(--sp-bg));
+  background: var(--sp-slot-hover-bg);
 }
 
 .sp-slot[aria-selected="true"] {
-  background: var(--sp-accent);
-  color: var(--sp-accent-fg);
+  background: var(--sp-slot-selected-bg);
+  color: var(--sp-slot-selected-fg);
 }
 
 .sp-slot:disabled {

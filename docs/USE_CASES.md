@@ -12,7 +12,9 @@ Acceptance:
 - slots render chronologically;
 - activating a slot dispatches `slotactivate`;
 - the selected value is a local civil datetime (`YYYY-MM-DDTHH:mm`);
-- empty days remain visible.
+- empty days remain visible;
+- `slot.tone` is a neutral presentation token surfaced as `data-tone`; the core defines no palette and never interprets the token;
+- `slot.description` carries accessible detail; a tooltip or popover remains application-owned.
 
 ## U2 — Controlled range navigation
 
@@ -78,7 +80,8 @@ Acceptance:
 - ArrowLeft/ArrowRight move to the nearest row in the adjacent day;
 - Home/End move to the first/last slot of the current day;
 - Enter/Space activates;
-- focus movement never changes `value`.
+- focus movement never changes `value`;
+- `slotactivate` bubbles, so one ancestor listener can delegate several pickers.
 
 ## U7 — Controlled selection
 
@@ -101,6 +104,7 @@ Acceptance:
 
 - FullCalendar class names never enter the component;
 - booking URLs and domain metadata can be retained as opaque `meta`;
+- the adapter maps its domain status to a neutral `slot.tone`; the core never interprets it;
 - the application owns post-selection booking behavior;
 - replacing the legacy backend does not require changing the picker.
 

@@ -194,6 +194,7 @@ re-render existing pickers, and no global `MutationObserver` is used.
       end: "14:05",
       disabled: false,
       description: "Optional accessible detail",
+      tone: "video",
       meta: {}
     }
   ],
@@ -211,11 +212,45 @@ setter rejects an impossible civil date such as `2026-02-31T10:00`; a malformed
 `value` attribute is ignored and reads as empty, so imperfect markup never
 breaks the element upgrade.
 
+## Per-slot presentation
+
+`slot.tone` is a neutral presentation token. The component never interprets it:
+it is only surfaced as `data-tone`, and the core ships no palette.
+
+```js
+picker.days = [{ date: "2026-11-17", slots: [{ start: "13:35", tone: "video" }] }];
+```
+
+```html
+<!-- rendered -->
+<button type="button" role="option" class="sp-slot" data-tone="video" ...>13:35</button>
+```
+
+Map tones to color with the dedicated slot tokens, so a tone never touches the
+focus ring (`--sp-focus`) or the rest of the picker:
+
+```css
+slot-picker .sp-slot[data-tone="video"] {
+  --sp-slot-bg: #e0f2fe;
+  --sp-slot-fg: #075985;
+}
+```
+
+The slot surface is `--sp-slot-bg`, `--sp-slot-fg`, `--sp-slot-border`,
+`--sp-slot-hover-bg`, `--sp-slot-selected-bg`, `--sp-slot-selected-fg`.
+
+Accessible detail stays on `slot.description` (`aria-description`). The
+component deliberately ships no tooltip or popover engine (see U4 in
+`docs/USE_CASES.md`): a hover/focus tooltip is application-owned. Because the
+DOM is light, an application can delegate on `.sp-slot` and read
+`data-value`/`data-tone` for advanced enrichments, but the primary workflow
+only needs `slotactivate`.
+
 ## Events
 
 - `rangechange` — the visible civil range changed.
 - `daychange` — the consulted day (`activeDate`) changed; never selects a slot.
-- `slotactivate` — the user explicitly chose a slot (sets `activeDate` first).
+- `slotactivate` — the user explicitly chose a slot (sets `activeDate` first); bubbles.
 - `noticeactivate` — the user activated a day notice control (bubbles, detail `{ day, notice, anchor }`, no default behavior).
 - `nextrequest` — no `source.next` was available; detail is `{ after }`.
 - `loadstart` / `loadend` / `loaderror` — optional remote-source lifecycle.

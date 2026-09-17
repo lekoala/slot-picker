@@ -33,6 +33,30 @@
     .demo-popover[hidden] { display: none; }
     .demo-popover strong { display: block; margin-block-end: 0.25rem; }
     .demo-popover p { margin: 0; color: #4b5563; }
+    /* Per-slot tones: the component only surfaces data-tone; the page maps it
+       to the dedicated --sp-slot-* tokens, so focus stays untouched. */
+    slot-picker .sp-slot[data-tone="video"] {
+      --sp-slot-bg: #e0f2fe;
+      --sp-slot-fg: #075985;
+      --sp-slot-border: #7dd3fc;
+      --sp-slot-hover-bg: #bae6fd;
+      --sp-slot-selected-bg: #0284c7;
+      --sp-slot-selected-fg: #fff;
+    }
+    slot-picker .sp-slot[data-tone="urgent"] {
+      --sp-slot-bg: #fee2e2;
+      --sp-slot-fg: #991b1b;
+      --sp-slot-border: #fca5a5;
+      --sp-slot-hover-bg: #fecaca;
+      --sp-slot-selected-bg: #dc2626;
+      --sp-slot-selected-fg: #fff;
+    }
+    .tone-legend { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-block: 0 1rem; font-size: 0.875rem; }
+    .tone-legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+    .tone-legend i { inline-size: 0.9rem; block-size: 0.9rem; border-radius: 0.25rem; border: 1px solid transparent; }
+    .tone-legend .swatch-default { background: #dbeafe; }
+    .tone-legend .swatch-video { background: #e0f2fe; border-color: #7dd3fc; }
+    .tone-legend .swatch-urgent { background: #fee2e2; border-color: #fca5a5; }
   </style>
 </head>
 <body>
@@ -50,6 +74,15 @@
   </div>
   <div class="card">
     <h2>Columns</h2>
+    <p class="tone-legend">
+      <span><i class="swatch-default"></i> Standard</span>
+      <span><i class="swatch-video"></i> Vidéo <code>tone="video"</code></span>
+      <span><i class="swatch-urgent"></i> Urgence <code>tone="urgent"</code></span>
+    </p>
+    <p>
+      <code>tone</code> reste neutre : le composant ne connaît aucune de ces valeurs,
+      il les surface en <code>data-tone</code> et la page mappe <code>--sp-slot-*</code>.
+    </p>
     <slot-picker id="picker-columns" start="2026-11-17" day-count="5" max-visible-rows="5"></slot-picker>
   </div>
   <div class="card">
@@ -134,7 +167,6 @@
       nextAvailability: "Prochain créneau disponible",
       showMore: "Voir plus de disponibilités",
       showLess: "Voir moins",
-      unavailable: "Indisponible",
       loading: "Chargement des disponibilités",
       empty: "Aucune disponibilité",
       rangeEmptyTitle: "Aucun créneau disponible sur cette période",
@@ -145,11 +177,54 @@
       days: "Jours"
     };
 
+    // `tone` is presentation-only: the page chooses the words and the colors.
     const days = [
-      { date: "2026-11-17", slots: [{ start: "13:35" }, { start: "19:00" }, { start: "21:00" }] },
-      { date: "2026-11-18", slots: [{ start: "08:00" }, { start: "08:35" }, { start: "09:00" }, { start: "10:10" }, { start: "11:40" }, { start: "12:00" }, { start: "14:30" }, { start: "15:20" }, { start: "19:00" }, { start: "21:30" }] },
-      { date: "2026-11-19", slots: [{ start: "09:15" }, { start: "11:35" }, { start: "12:20" }, { start: "14:10" }, { start: "18:00" }, { start: "19:00" }] },
-      { date: "2026-11-20", slots: [{ start: "12:00" }, { start: "15:30" }, { start: "16:45" }, { start: "19:00" }, { start: "20:20" }, { start: "21:00" }, { start: "21:40" }] },
+      {
+        date: "2026-11-17",
+        slots: [
+          { start: "13:35", tone: "video" },
+          { start: "19:00", tone: "urgent" },
+          { start: "21:00" }
+        ]
+      },
+      {
+        date: "2026-11-18",
+        slots: [
+          { start: "08:00" },
+          { start: "08:35", tone: "video" },
+          { start: "09:00" },
+          { start: "10:10", tone: "video" },
+          { start: "11:40" },
+          { start: "12:00", tone: "urgent" },
+          { start: "14:30" },
+          { start: "15:20", tone: "video" },
+          { start: "19:00" },
+          { start: "21:30", tone: "urgent" }
+        ]
+      },
+      {
+        date: "2026-11-19",
+        slots: [
+          { start: "09:15" },
+          { start: "11:35", tone: "video" },
+          { start: "12:20" },
+          { start: "14:10", tone: "urgent" },
+          { start: "18:00" },
+          { start: "19:00", tone: "video" }
+        ]
+      },
+      {
+        date: "2026-11-20",
+        slots: [
+          { start: "12:00", tone: "urgent" },
+          { start: "15:30", tone: "video" },
+          { start: "16:45" },
+          { start: "19:00" },
+          { start: "20:20" },
+          { start: "21:00" },
+          { start: "21:40" }
+        ]
+      },
       {
         date: "2026-11-21",
         slots: [],

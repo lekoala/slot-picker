@@ -1327,3 +1327,90 @@ test("focus falls back to the roving slot when the targeted control disappears",
   expect(result.isSlot).toBe(true);
   expect(result.value).toBe("2026-11-25T10:00");
 });
+
+test("a neutral tone drives the slot color surface without touching focus", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async () => {
+    const style = document.createElement("style");
+    style.textContent =
+      'slot-picker .sp-slot[data-tone="video"] { --sp-slot-bg: rgb(1, 2, 3); --sp-slot-fg: rgb(4, 5, 6); }';
+    document.head.append(style);
+
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "3");
+    picker.days = [{ date: "2026-11-17", slots: [{ start: "09:00", tone: "video" }, { start: "10:00" }] }];
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    const toned = picker.querySelector('.sp-slot[data-tone="video"]');
+    const plain = picker.querySelector('.sp-slot[data-value="2026-11-17T10:00"]');
+    const tonedStyle = getComputedStyle(toned);
+    return {
+      tone: toned.getAttribute("data-tone"),
+      tonedBg: tonedStyle.backgroundColor,
+      tonedColor: tonedStyle.color,
+      plainBg: getComputedStyle(plain).backgroundColor,
+      accent: getComputedStyle(picker).getPropertyValue("--sp-accent").trim(),
+      focusOnToned: tonedStyle.getPropertyValue("--sp-focus").trim(),
+    };
+  });
+
+  expect(result.tone).toBe("video");
+  expect(result.tonedBg).toBe("rgb(1, 2, 3)");
+  expect(result.tonedColor).toBe("rgb(4, 5, 6)");
+  expect(result.plainBg).not.toBe("rgb(1, 2, 3)");
+  // The tone must not redefine the shared focus ring, which still follows accent.
+  expect(result.focusOnToned).toBe(result.accent);
+});
+
+test("slotactivate bubbles to an ancestor", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const seen = await page.evaluate(
+    () =>
+      new Promise((resolve) => {
+        const picker = document.querySelector("#picker-columns");
+        document.body.addEventListener(
+          "slotactivate",
+          (event) =>
+            resolve({
+              value: event.detail.value,
+              bubbles: event.bubbles,
+              targetIsHost: event.target === picker,
+            }),
+          { once: true },
+        );
+        picker.querySelector(".sp-slot").click();
+      }),
+  );
+
+  expect(seen.value).toBe("2026-11-17T13:35");
+  expect(seen.bubbles).toBe(true);
+  expect(seen.targetIsHost).toBe(true);
+});
+
+test("the demo showcases toned slots", async ({ page }) => {
+  await page.goto("/demo/index.html");
+
+  const picker = page.locator("#picker-columns");
+  await expect(picker.locator('.sp-slot[data-tone="video"]').first()).toBeVisible();
+
+  const backgrounds = await page.evaluate(() => {
+    const columns = document.querySelector("#picker-columns");
+    const video = columns.querySelector('.sp-slot[data-tone="video"]');
+    const urgent = columns.querySelector('.sp-slot[data-tone="urgent"]');
+    const plain = columns.querySelector(".sp-slot:not([data-tone])");
+    return {
+      video: getComputedStyle(video).backgroundColor,
+      urgent: getComputedStyle(urgent).backgroundColor,
+      plain: getComputedStyle(plain).backgroundColor,
+    };
+  });
+
+  expect(backgrounds.video).not.toBe(backgrounds.plain);
+  expect(backgrounds.urgent).not.toBe(backgrounds.plain);
+  expect(backgrounds.video).not.toBe(backgrounds.urgent);
+});

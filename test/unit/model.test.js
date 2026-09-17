@@ -37,6 +37,21 @@ describe("slot model", () => {
     ).not.toThrow();
   });
 
+  test("keeps a neutral tone and rejects an invalid one", () => {
+    const [day] = normalizeDays([{ date: "2026-11-17", slots: [{ start: "10:00", tone: "video" }] }]);
+    expect(day.slots[0].tone).toBe("video");
+
+    expect(() => normalizeDays([{ date: "2026-11-17", slots: [{ start: "10:00", tone: "" }] }])).toThrow(
+      /Invalid slot tone/,
+    );
+    expect(() => normalizeDays([{ date: "2026-11-17", slots: [{ start: "10:00", tone: "   " }] }])).toThrow(
+      /Invalid slot tone/,
+    );
+    expect(() => normalizeDays([{ date: "2026-11-17", slots: [{ start: "10:00", tone: 123 }] }])).toThrow(
+      /Invalid slot tone/,
+    );
+  });
+
   test("fills empty visible days", () => {
     const days = visibleDays([{ date: "2026-11-18", slots: [] }], "2026-11-17", 3);
     expect(days.map((day) => day.date)).toEqual(["2026-11-17", "2026-11-18", "2026-11-19"]);

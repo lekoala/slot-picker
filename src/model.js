@@ -17,7 +17,11 @@ export const RESPONSIVE_BREAKPOINTS = Object.freeze([
   Object.freeze({ minWidth: 0, dayCount: 1 }),
 ]);
 
-/** @typedef {{start:string,end?:string,disabled?:boolean,description?:string,meta?:unknown}} Slot */
+/**
+ * `tone` is a neutral presentation token surfaced as `data-tone`; the core
+ * never interprets it. `meta` stays opaque and is never inspected.
+ * @typedef {{start:string,end?:string,disabled?:boolean,description?:string,tone?:string,meta?:unknown}} Slot
+ */
 /** @typedef {{label:string,description?:string,meta?:unknown}} DayNotice */
 /** @typedef {{date:string,slots:Slot[],notice?:DayNotice}} SlotDay */
 
@@ -64,6 +68,9 @@ export function normalizeDays(input) {
           }
           if (slot.end && !isTimeValue(slot.end)) {
             throw new TypeError(`Invalid slot end on ${day.date}`);
+          }
+          if (slot.tone !== undefined && (typeof slot.tone !== "string" || slot.tone.trim() === "")) {
+            throw new TypeError(`Invalid slot tone on ${day.date}`);
           }
           // The public value identifies a slot by date and time: a duplicate
           // would break the single roving focus and the single selection.

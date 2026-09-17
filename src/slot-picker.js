@@ -1031,6 +1031,6 @@ export class SlotPickerElement extends HTMLElement {
     this.#setActiveDate(day.date);
     this.value = value;
     this.#focusedValue = value;
-    this.dispatchEvent(new CustomEvent("slotactivate", { detail: { value, day, slot } }));
+    this.dispatchEvent(new CustomEvent("slotactivate", { detail: { value, day, slot }, bubbles: true }));
   }
 }

@@ -83,6 +83,40 @@ describe("slot button semantics", () => {
     expect(html).toContain('tabindex="-1"');
   });
 
+  test("surfaces a neutral tone as data-tone", () => {
+    const html = slotButton({
+      date: "2026-11-17",
+      slot: { start: "10:00", tone: "video" },
+      dayIndex: 0,
+      slotIndex: 0,
+      selected: false,
+      tabbed: false,
+    });
+    expect(html).toContain('data-tone="video"');
+  });
+
+  test("omits data-tone without a tone and escapes its value", () => {
+    const plain = slotButton({
+      date: "2026-11-17",
+      slot: { start: "10:00" },
+      dayIndex: 0,
+      slotIndex: 0,
+      selected: false,
+      tabbed: false,
+    });
+    expect(plain).not.toContain("data-tone");
+
+    const escaped = slotButton({
+      date: "2026-11-17",
+      slot: { start: "10:00", tone: 'a"b' },
+      dayIndex: 0,
+      slotIndex: 0,
+      selected: false,
+      tabbed: false,
+    });
+    expect(escaped).toContain('data-tone="a&quot;b"');
+  });
+
   test("a disabled slot stays discoverable as a disabled option", () => {
     const html = slotButton({
       date: "2026-11-17",
