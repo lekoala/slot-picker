@@ -38,7 +38,8 @@ Acceptance:
 - superseded requests are aborted;
 - stale responses never repaint the current range;
 - source/backend URL conventions are application-owned;
-- loading and error states do not mutate selection.
+- loading and error states do not mutate selection;
+- loading is signalled without layout shift: `aria-busy="true"` on the host, the loading text announced through a visually hidden `role="status"`, and only a delayed CSS fade once the response is actually slow;
 
 ## U4 — Day notice / exceptional unavailability
 
@@ -151,7 +152,9 @@ Acceptance:
 - `goToNextAvailability()` is a contextual action, never permanent chrome: it is surfaced in the range empty state when `next-availability` is set;
 - a window with no slot and no notice renders a range empty state (`.sp-range-empty` replacing the projection, with a `next()` action, plus the contextual availability action when `next-availability` is set);
 - a window with a notice but no slots keeps the normal projection so the exception stays visible;
-- resize changes the range, never `value`; event order is stable (`rangechange`, then `daychange`, then any reload).
+- resize changes the range, never `value`; event order is stable (`rangechange`, then `daychange`, then any reload);
+- collapsed `columns` projection keeps a stable footprint derived from `max-visible-rows`: full, sparse and wholly empty ranges reserve the same height, so navigating between equivalent ranges never causes avoidable vertical layout shift;
+- `expanded` content may grow naturally past that floor; in `layout="day"`, only the empty state gets a baseline.
 
 ## Not a use case for this package
 

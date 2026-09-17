@@ -51,12 +51,31 @@
       --sp-slot-selected-bg: #dc2626;
       --sp-slot-selected-fg: #fff;
     }
+    /* Icon next to the time, owned entirely by the theme. `grid-auto-flow:
+       column` is required because `.sp-slot` centers its content with a grid. */
+    slot-picker .sp-slot[data-tone="instant"] {
+      --sp-slot-bg: #fef3c7;
+      --sp-slot-fg: #92400e;
+      --sp-slot-border: #fcd34d;
+      --sp-slot-hover-bg: #fde68a;
+      --sp-slot-selected-bg: #d97706;
+      --sp-slot-selected-fg: #fff;
+      grid-auto-flow: column;
+      justify-content: center;
+      gap: 0.35rem;
+    }
+    slot-picker .sp-slot[data-tone="instant"]::after {
+      content: "⚡";
+      font-size: 0.85em;
+      line-height: 1;
+    }
     .tone-legend { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-block: 0 1rem; font-size: 0.875rem; }
     .tone-legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
     .tone-legend i { inline-size: 0.9rem; block-size: 0.9rem; border-radius: 0.25rem; border: 1px solid transparent; }
     .tone-legend .swatch-default { background: #dbeafe; }
     .tone-legend .swatch-video { background: #e0f2fe; border-color: #7dd3fc; }
     .tone-legend .swatch-urgent { background: #fee2e2; border-color: #fca5a5; }
+    .tone-legend .swatch-instant { background: #fef3c7; border-color: #fcd34d; }
   </style>
 </head>
 <body>
@@ -78,6 +97,7 @@
       <span><i class="swatch-default"></i> Standard</span>
       <span><i class="swatch-video"></i> Vidéo <code>tone="video"</code></span>
       <span><i class="swatch-urgent"></i> Urgence <code>tone="urgent"</code></span>
+      <span><i class="swatch-instant"></i> RDV instantané <code>tone="instant"</code></span>
     </p>
     <p>
       <code>tone</code> reste neutre : le composant ne connaît aucune de ces valeurs,
@@ -184,7 +204,7 @@
         slots: [
           { start: "13:35", tone: "video" },
           { start: "19:00", tone: "urgent" },
-          { start: "21:00" }
+          { start: "21:00", tone: "instant", description: "Réservation immédiate possible" }
         ]
       },
       {
@@ -205,7 +225,7 @@
       {
         date: "2026-11-19",
         slots: [
-          { start: "09:15" },
+          { start: "09:15", tone: "instant", description: "Réservation immédiate possible" },
           { start: "11:35", tone: "video" },
           { start: "12:20" },
           { start: "14:10", tone: "urgent" },

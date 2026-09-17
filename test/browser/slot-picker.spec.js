@@ -1414,3 +1414,149 @@ test("the demo showcases toned slots", async ({ page }) => {
   expect(backgrounds.urgent).not.toBe(backgrounds.plain);
   expect(backgrounds.video).not.toBe(backgrounds.urgent);
 });
+
+test("the demo renders a theme-owned icon next to an instant slot", async ({ page }) => {
+  await page.goto("/demo/index.html");
+
+  const result = await page.evaluate(() => {
+    const slot = document.querySelector('#picker-columns .sp-slot[data-tone="instant"]');
+    if (!slot) return { found: false, icon: "", description: "" };
+    return {
+      found: true,
+      icon: getComputedStyle(slot, "::after").content,
+      description: slot.getAttribute("aria-description"),
+    };
+  });
+
+  expect(result.found).toBe(true);
+  expect(result.icon).toContain("⚡");
+  // The glyph is decorative: the meaning stays in the accessible description.
+  expect(result.description).toBe("Réservation immédiate possible");
+});
+
+test("collapsed columns keep a stable footprint across sparse and empty ranges", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "3");
+    picker.setAttribute("max-visible-rows", "2");
+    host.append(picker);
+    document.body.append(host);
+
+    const measure = async (days) => {
+      picker.days = days;
+      await new Promise(requestAnimationFrame);
+      return picker.querySelector(".sp-content").getBoundingClientRect().height;
+    };
+
+    const populated = await measure([
+      { date: "2026-11-17", slots: [{ start: "09:00" }, { start: "10:00" }] },
+      { date: "2026-11-18", slots: [{ start: "09:00" }] },
+      { date: "2026-11-19", slots: [] },
+    ]);
+    const sparse = await measure([{ date: "2026-11-17", slots: [{ start: "09:00" }] }]);
+    const empty = await measure([]);
+    return { populated, sparse, empty };
+  });
+
+  expect(Math.abs(result.populated - result.sparse)).toBeLessThanOrEqual(1);
+  expect(Math.abs(result.populated - result.empty)).toBeLessThanOrEqual(1);
+});
+
+test("expanded columns grow past the collapsed footprint", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "3");
+    picker.setAttribute("max-visible-rows", "2");
+    picker.days = [
+      {
+        date: "2026-11-17",
+        slots: [
+          { start: "09:00" },
+          { start: "10:00" },
+          { start: "11:00" },
+          { start: "12:00" },
+          { start: "13:00" },
+        ],
+      },
+    ];
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    const collapsed = picker.querySelector(".sp-content").getBoundingClientRect().height;
+    picker.expanded = true;
+    await new Promise(requestAnimationFrame);
+    const expanded = picker.querySelector(".sp-content").getBoundingClientRect().height;
+    return { collapsed, expanded };
+  });
+
+  expect(result.expanded).toBeGreaterThan(result.collapsed);
+});
+
+test("an empty day panel keeps a baseline height", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "3");
+    picker.setAttribute("layout", "day");
+    picker.setAttribute("active-date", "2026-11-18");
+    picker.days = [{ date: "2026-11-17", slots: [{ start: "09:00" }] }];
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    const panel = picker.querySelector(".sp-panel");
+    const empty = picker.querySelector(".sp-panel .sp-day-empty");
+    return {
+      hasPanel: Boolean(panel),
+      hasEmpty: Boolean(empty),
+      height: empty ? empty.getBoundingClientRect().height : 0,
+    };
+  });
+
+  expect(result.hasPanel).toBe(true);
+  expect(result.hasEmpty).toBe(true);
+  expect(result.height).toBeGreaterThanOrEqual(90);
+});
+
+test("loading is announced with aria-busy and no visible status line", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "3");
+    host.append(picker);
+    document.body.append(host);
+
+    /** @type {((value:unknown)=>void)|null} */
+    let resolveLoad = null;
+    picker.source = () => new Promise((resolve) => (resolveLoad = resolve));
+    await new Promise(requestAnimationFrame);
+
+    const busy = picker.getAttribute("aria-busy");
+    const hidden = Boolean(picker.querySelector(".sp-status.sp-visually-hidden"));
+    const visible = Boolean(picker.querySelector(".sp-status:not(.sp-visually-hidden)"));
+
+    resolveLoad?.([]);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    return { busy, hidden, visible, afterBusy: picker.getAttribute("aria-busy") };
+  });
+
+  expect(result.busy).toBe("true");
+  expect(result.hidden).toBe(true);
+  expect(result.visible).toBe(false);
+  expect(result.afterBusy).toBeNull();
+});

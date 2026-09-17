@@ -24,6 +24,25 @@
   --sp-slot-selected-bg: var(--sp-accent);
   --sp-slot-selected-fg: var(--sp-accent-fg);
   --sp-nav-size: 2.5rem;
+  /* Stable collapsed footprint. `--sp-day-header-block-size` is a minimum, not
+     a fixed height: the reserved area follows `max-visible-rows` so navigating
+     between sparse and empty ranges never shifts the page. */
+  --sp-day-header-block-size: 3.4rem;
+  --sp-collapsed-rows: var(--_sp-max-visible-rows, 5);
+  --sp-collapsed-body-block-size: calc(
+    var(--sp-collapsed-rows) *
+    (var(--sp-slot-block-size) + var(--sp-gap)) -
+    var(--sp-gap)
+  );
+  --sp-footer-block-size: 2.5rem;
+  --sp-collapsed-block-size: calc(
+    var(--sp-day-header-block-size) +
+    var(--sp-collapsed-body-block-size) +
+    var(--sp-footer-block-size)
+  );
+  --sp-panel-min-block-size: calc(2 * var(--sp-slot-block-size) + var(--sp-gap));
+  --sp-loading-fade-opacity: 0.72;
+  --sp-loading-fade-delay: 400ms;
   display: block;
   color: var(--sp-fg);
   font: inherit;
@@ -57,6 +76,31 @@
 
 .sp-content {
   min-inline-size: 0;
+  opacity: 1;
+  transition-property: opacity;
+  transition-duration: 160ms;
+  transition-timing-function: ease;
+  transition-delay: 0ms;
+}
+
+/* Slow loads fade the current projection to signal stale data, but only after
+   a delay: fast requests never flicker. `aria-busy` is the only state source. */
+slot-picker[aria-busy="true"] .sp-content {
+  opacity: var(--sp-loading-fade-opacity, 0.72);
+  transition-delay: var(--sp-loading-fade-delay, 400ms);
+}
+
+/* Keep the delay (the stale hint), drop the animation. */
+@media (prefers-reduced-motion: reduce) {
+  .sp-content {
+    transition-duration: 0ms;
+  }
+}
+
+/* Collapsed columns keep the same footprint whether the range is full, sparse,
+   or empty. Expanded content simply grows past this floor. */
+slot-picker:not([layout="day"]) .sp-content {
+  min-block-size: var(--sp-collapsed-block-size);
 }
 
 /* Auxiliary, start-aligned shortcut. Rendered only when `homeDate` is outside
@@ -98,7 +142,7 @@
   display: grid;
   justify-items: center;
   gap: 0.1rem;
-  min-block-size: 3.4rem;
+  min-block-size: var(--sp-day-header-block-size);
   padding-block: 0.15rem 0.55rem;
   text-align: center;
 }
@@ -271,11 +315,25 @@ html[dir="rtl"] .sp-nav svg {
 .sp-range-empty {
   display: grid;
   justify-items: center;
+  align-content: center;
   gap: 0.5rem;
+  box-sizing: border-box;
+  min-block-size: var(--sp-collapsed-block-size);
   padding: 1.5rem 1rem;
   border-radius: var(--sp-radius);
   background: var(--sp-card-bg);
   text-align: center;
+}
+
+slot-picker[layout="day"] .sp-range-empty {
+  min-block-size: var(--sp-panel-min-block-size);
+}
+
+/* Day layout: only the empty state needs a baseline, a populated panel keeps
+   its natural height. */
+slot-picker[layout="day"] .sp-day-empty {
+  align-content: center;
+  min-block-size: var(--sp-panel-min-block-size);
 }
 
 .sp-range-empty-title {

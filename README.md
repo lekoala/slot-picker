@@ -146,6 +146,25 @@ picker.addEventListener("noticeactivate", ({ detail }) => {
 explicit control. The component never embeds a tooltip, popover or floating
 engine.
 
+## Stable footprint and loading
+
+Collapsed `columns` projection keeps a stable footprint derived from
+`max-visible-rows`: a full, sparse or wholly empty range reserves the same
+height, so `previous()`/`next()` never jerk the page. `expanded` content grows
+past that floor. In `layout="day"`, only the empty state gets a baseline.
+
+- `--sp-day-header-block-size` is a minimum, never a fixed height.
+- `--sp-collapsed-rows` defaults to `max-visible-rows`.
+- `--sp-collapsed-body-block-size`, `--sp-footer-block-size` and
+  `--sp-collapsed-block-size` describe the reserved area.
+- `--sp-panel-min-block-size` is the day baseline.
+
+Loading is signalled by `aria-busy="true"` on the host plus a CSS fade that only
+starts after `--sp-loading-fade-delay` (default `400ms`), so fast responses
+never flicker. `messages.loading` stays announced through a visually hidden
+`role="status"`, so there is no layout shift. The fade honours
+`prefers-reduced-motion` (delay kept, animation removed).
+
 ## Locales
 
 `Intl` already localizes weekday and month names from the component's `locale`
@@ -238,6 +257,26 @@ slot-picker .sp-slot[data-tone="video"] {
 
 The slot surface is `--sp-slot-bg`, `--sp-slot-fg`, `--sp-slot-border`,
 `--sp-slot-hover-bg`, `--sp-slot-selected-bg`, `--sp-slot-selected-fg`.
+
+An icon next to the time is theme-owned too. `::after` needs
+`grid-auto-flow: column`, because `.sp-slot` centers its content with a grid:
+
+```css
+slot-picker .sp-slot[data-tone="instant"] {
+  grid-auto-flow: column;
+  justify-content: center;
+  gap: 0.35rem;
+}
+slot-picker .sp-slot[data-tone="instant"]::after {
+  content: "⚡";
+  font-size: 0.85em;
+  line-height: 1;
+}
+```
+
+A generated glyph can enter the accessible name ("13:35 ⚡"): keep the meaning
+in `slot.description`, or use `content: ""` plus a background/mask when the
+name must stay purely the time.
 
 Accessible detail stays on `slot.description` (`aria-description`). The
 component deliberately ships no tooltip or popover engine (see U4 in

@@ -797,8 +797,11 @@ export class SlotPickerElement extends HTMLElement {
       hasOverflow = rendered.hasOverflow;
     }
 
+    // Loading is signalled by `aria-busy` plus a delayed CSS fade, never by a
+    // visible status line: the collapsed footprint must not shift. The live
+    // text stays available to assistive tech but is visually hidden.
     const status = this.#loading
-      ? `<div class="sp-status" role="status">${escapeHtml(messages.loading)}</div>`
+      ? `<div class="sp-status sp-visually-hidden" role="status">${escapeHtml(messages.loading)}</div>`
       : this.#error
         ? `<div class="sp-status sp-status-error" role="status">${escapeHtml(String(this.#error))}</div>`
         : "";
@@ -813,6 +816,10 @@ export class SlotPickerElement extends HTMLElement {
     const home = this.hasAttribute("home-date") && !invalid && !homeInRange;
 
     this.style.setProperty("--_sp-day-count", String(Math.max(1, count)));
+    this.style.setProperty("--_sp-max-visible-rows", String(this.maxVisibleRows));
+    // `aria-busy` is the single source of loading state; the fade is pure CSS.
+    if (this.#loading) this.setAttribute("aria-busy", "true");
+    else this.removeAttribute("aria-busy");
     this.innerHTML = `<div class="sp-shell" data-layout="${this.layout}">
       <div class="sp-projection">
         <button type="button" class="sp-nav sp-nav-prev" aria-label="${escapeAttr(messages.previous)}"${canPrevious ? "" : " disabled"}>${PREV_ICON}</button>
