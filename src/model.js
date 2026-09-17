@@ -44,6 +44,7 @@ export function normalizeDays(input) {
       seen.add(day.date);
 
       const slots = Array.isArray(day.slots) ? day.slots : [];
+      const seenStarts = new Set();
       const normalizedSlots = slots
         .map((slot) => {
           if (!slot || !isTimeValue(slot.start)) {
@@ -52,6 +53,12 @@ export function normalizeDays(input) {
           if (slot.end && !isTimeValue(slot.end)) {
             throw new TypeError(`Invalid slot end on ${day.date}`);
           }
+          // The public value identifies a slot by date and time: a duplicate
+          // would break the single roving focus and the single selection.
+          if (seenStarts.has(slot.start)) {
+            throw new TypeError(`Duplicate slot: ${day.date}T${slot.start}`);
+          }
+          seenStarts.add(slot.start);
           return { ...slot };
         })
         .sort((a, b) => a.start.localeCompare(b.start));

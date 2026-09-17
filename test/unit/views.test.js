@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { noticeBlock, noticeIndicator } from "../../src/views/shared.js";
+import { noticeBlock, noticeIndicator, slotButton } from "../../src/views/shared.js";
 
 describe("day notice rendering", () => {
   test("renders a non-interactive block with label and description", () => {
@@ -51,5 +51,49 @@ describe("day notice rendering", () => {
   test("the interactive indicator falls back to the label without a description", () => {
     const html = noticeIndicator({ interactive: true, dayIndex: 0, label: "Unavailable" });
     expect(html).toContain('aria-label="Unavailable"');
+  });
+});
+
+describe("slot button semantics", () => {
+  test("exposes option semantics backed by aria-selected", () => {
+    const html = slotButton({
+      date: "2026-11-17",
+      slot: { start: "10:00" },
+      dayIndex: 0,
+      slotIndex: 1,
+      selected: true,
+      tabbed: true,
+    });
+    expect(html).toContain('role="option"');
+    expect(html).toContain('aria-selected="true"');
+    expect(html).toContain('tabindex="0"');
+    expect(html).toContain('data-value="2026-11-17T10:00"');
+  });
+
+  test("an unselected slot is not selected and takes no tab stop", () => {
+    const html = slotButton({
+      date: "2026-11-17",
+      slot: { start: "10:00" },
+      dayIndex: 0,
+      slotIndex: 0,
+      selected: false,
+      tabbed: false,
+    });
+    expect(html).toContain('aria-selected="false"');
+    expect(html).toContain('tabindex="-1"');
+  });
+
+  test("a disabled slot stays discoverable as a disabled option", () => {
+    const html = slotButton({
+      date: "2026-11-17",
+      slot: { start: "10:00", disabled: true },
+      dayIndex: 0,
+      slotIndex: 0,
+      selected: false,
+      tabbed: false,
+    });
+    expect(html).toContain('role="option"');
+    expect(html).toContain('aria-disabled="true"');
+    expect(html).toContain(" disabled");
   });
 });

@@ -54,8 +54,11 @@ export function rovingValue(enabled, ...preferred) {
 export function slotButton({ date, slot, dayIndex, slotIndex, selected, tabbed }) {
   const value = slotValue(date, slot.start);
   const description = slot.description ? ` aria-description="${escapeAttr(slot.description)}"` : "";
-  const disabled = slot.disabled ? " disabled" : "";
-  return `<button type="button" class="sp-slot" data-day-index="${dayIndex}" data-slot-index="${slotIndex}" data-value="${escapeAttr(value)}" aria-selected="${selected ? "true" : "false"}" tabindex="${tabbed ? 0 : -1}"${disabled}${description}>${escapeHtml(slot.start)}</button>`;
+  // `option` backs the `aria-selected` contract: browsers ignore selection on
+  // a plain button role. The element stays a real <button> with native
+  // activation; `aria-disabled` keeps a disabled slot discoverable.
+  const disabled = slot.disabled ? ' disabled aria-disabled="true"' : "";
+  return `<button type="button" role="option" class="sp-slot" data-day-index="${dayIndex}" data-slot-index="${slotIndex}" data-value="${escapeAttr(value)}" aria-selected="${selected ? "true" : "false"}" tabindex="${tabbed ? 0 : -1}"${disabled}${description}>${escapeHtml(slot.start)}</button>`;
 }
 
 /**

@@ -82,6 +82,7 @@ export function renderDay({
     active.notice && noticeDisplay === "action"
       ? noticeIndicator({ interactive: true, dayIndex: activeIndex, ...active.notice })
       : "";
+  const panelLabel = formatterPanelDay.format(toUtcDate(active.date));
 
   let panelBody;
   if (active.slots.length === 0) {
@@ -102,13 +103,13 @@ export function renderDay({
         },
       )
       .join("");
-    panelBody = `${notice}<div class="sp-panel-slots">${slots}</div>`;
+    panelBody = `${notice}<div class="sp-panel-slots" role="listbox" aria-label="${escapeAttr(panelLabel)}">${slots}</div>`;
   }
 
   const html = `<div class="sp-daystrip" role="group" aria-label="${escapeAttr(messages.days)}">${strip}</div>
     <section class="sp-panel" data-date="${escapeAttr(active.date)}">
       <header class="sp-panel-header">
-        <strong class="sp-panel-title">${escapeHtml(formatterPanelDay.format(toUtcDate(active.date)))}</strong>
+        <strong class="sp-panel-title">${escapeHtml(panelLabel)}</strong>
         ${headerNotice}
       </header>
       ${panelBody}

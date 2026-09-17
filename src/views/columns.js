@@ -84,7 +84,7 @@ export function renderColumns({
             { length: Math.max(0, rows - slots.length) },
             () => '<span class="sp-empty" aria-hidden="true">–</span>',
           ).join("");
-          body = `${noticeContent}<div class="sp-slots">${slotMarkup}${empties}</div>`;
+          body = `${noticeContent}<div class="sp-slots" role="listbox" aria-label="${escapeAttr(`${weekday} ${displayDate}`)}">${slotMarkup}${empties}</div>`;
         }
 
         return `<section class="sp-day" data-date="${escapeAttr(day.date)}">

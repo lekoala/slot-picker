@@ -114,6 +114,13 @@ export class SlotPickerElement extends HTMLElement {
   #lastRange = null;
   /** @type {string|null} */
   #lastActiveDate = null;
+  /**
+   * Range the latest load was requested for. Kept separate from #lastRange so
+   * initialization and reconnection can load without faking a range change.
+   * @type {string|null}
+   */
+  #loadedKey = null;
+  #loadRequest = 0;
 
   constructor() {
     super();
@@ -142,6 +149,8 @@ export class SlotPickerElement extends HTMLElement {
   disconnectedCallback() {
     this.#sourceController.abort();
     this.#resizeObserver?.disconnect();
+    // Reconnecting is a fresh load, even when the range is unchanged.
+    this.#loadedKey = null;
   }
 
   /**
@@ -236,12 +245,13 @@ export class SlotPickerElement extends HTMLElement {
   }
 
   set value(value) {
-    if (!value) this.removeAttribute("value");
-    else if (/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d$/.test(value)) {
-      this.setAttribute("value", value);
-    } else {
-      throw new TypeError("value must be YYYY-MM-DDTHH:mm or empty");
+    if (!value) {
+      this.removeAttribute("value");
+      return;
     }
+    const match = /^(\d{4}-\d{2}-\d{2})T((?:[01]\d|2[0-3]):[0-5]\d)$/.exec(value);
+    if (match && isDateValue(match[1])) this.setAttribute("value", value);
+    else throw new TypeError("value must be a valid YYYY-MM-DDTHH:mm or empty");
   }
 
   get activeDate() {
@@ -438,7 +448,9 @@ export class SlotPickerElement extends HTMLElement {
       if (options.responsiveBreakpoints !== undefined)
         this.responsiveBreakpoints = options.responsiveBreakpoints;
     });
-    this.#reconcile({ pinActive: true });
+    // An explicit start wins over the previous active-day anchor; only the
+    // other options preserve the consulted day.
+    this.#reconcile({ pinActive: options.start === undefined });
   }
 
   async reload() {
@@ -555,7 +567,22 @@ export class SlotPickerElement extends HTMLElement {
     if (!first && activeChanged) {
       this.dispatchEvent(new CustomEvent("daychange", { detail: { activeDate: active } }));
     }
-    if (reload && rangeChanged && count > 0) this.#load();
+    if (!count) {
+      // An invalid range must invalidate in-flight work: its response would
+      // otherwise repaint a range the consumer can no longer see.
+      this.#sourceController.abort();
+      this.#loadRequest += 1;
+      this.#loadedKey = null;
+      this.#loading = false;
+      this.#error = null;
+    } else if (reload && this.#loadedKey !== this.#rangeKey(range)) {
+      this.#load();
+    }
+  }
+
+  /** @param {{start:string,end:string,dayCount:number}} range */
+  #rangeKey(range) {
+    return `${range.start}|${range.end}|${range.dayCount}`;
   }
 
   /** @param {ResizeObserverEntry[]} entries */
@@ -592,9 +619,15 @@ export class SlotPickerElement extends HTMLElement {
   }
 
   async #load() {
-    if (!this.source) return;
-    if (!this.visibleDayCount) return;
+    const request = ++this.#loadRequest;
+    if (!this.source || !this.visibleDayCount) {
+      // No source or an unusable range: never leave a stale loading flag behind.
+      this.#loading = false;
+      this.#queueRender();
+      return;
+    }
     const range = this.range;
+    this.#loadedKey = this.#rangeKey(range);
     this.#loading = true;
     this.#error = null;
     this.#queueRender();
@@ -602,21 +635,28 @@ export class SlotPickerElement extends HTMLElement {
 
     try {
       const result = await this.#sourceController.load(range);
-      if (result === null) return;
+      // A superseded response must not repaint the current range.
+      if (request !== this.#loadRequest || result === null) return;
       const days = Array.isArray(result)
         ? result
         : result && typeof result === "object" && "days" in result
           ? result.days
           : [];
       this.#days = normalizeDays(/** @type {SlotDay[]} */ (days));
+      if (request !== this.#loadRequest) return;
       this.dispatchEvent(new CustomEvent("loadend", { detail: { ...range, days: this.days } }));
     } catch (error) {
+      // Stale errors (and stale loading resets) belong to a range nobody asked
+      // for anymore: only the latest request may publish.
+      if (request !== this.#loadRequest) return;
       if (error instanceof DOMException && error.name === "AbortError") return;
       this.#error = error;
       this.dispatchEvent(new CustomEvent("loaderror", { detail: { ...range, error } }));
     } finally {
-      this.#loading = false;
-      this.#queueRender();
+      if (request === this.#loadRequest) {
+        this.#loading = false;
+        this.#queueRender();
+      }
     }
   }
 

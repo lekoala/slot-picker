@@ -1022,3 +1022,178 @@ test("demo opens a basic popover anchored on noticeactivate", async ({ page }) =
   await page.keyboard.press("Escape");
   await expect(popover).toBeHidden();
 });
+
+test("a source set before connection still loads once per connection", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    let loads = 0;
+    picker.source = () => {
+      loads++;
+      return [];
+    };
+    host.append(picker);
+    document.body.append(host);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const first = loads;
+    picker.remove();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    host.append(picker);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    return { first, second: loads };
+  });
+
+  expect(result.first).toBe(1);
+  expect(result.second).toBe(2);
+});
+
+test("a superseded request cannot clear the current loading state or raise a stale error", async ({
+  page,
+}) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "5");
+    picker.setAttribute("min", "2026-11-01");
+    picker.setAttribute("max", "2026-12-31");
+    host.append(picker);
+    document.body.append(host);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    /** @type {{resolve:(value:unknown)=>void,reject:(reason?:unknown)=>void}[]} */
+    const requests = [];
+    picker.source = () => new Promise((resolve, reject) => requests.push({ resolve, reject }));
+    const errors = [];
+    picker.addEventListener("loaderror", () => errors.push("loaderror"));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    picker.next();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    picker.next();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    // Resolve the oldest superseded request while the latest is still pending.
+    requests[0].resolve([{ date: "2026-11-17", slots: [{ start: "09:00" }] }]);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    const loadingWhilePending = Boolean(picker.querySelector(".sp-status"));
+
+    // Resolve the current request, then reject an older one.
+    requests[requests.length - 1].resolve([{ date: "2026-11-27", slots: [{ start: "09:00" }] }]);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    requests[requests.length - 2].reject(new Error("stale boom"));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    return {
+      loadingWhilePending,
+      errorShown: Boolean(picker.querySelector(".sp-status-error")),
+      errors,
+      days: picker.days.map((day) => day.date),
+      start: picker.range.start,
+    };
+  });
+
+  expect(result.loadingWhilePending).toBe(true);
+  expect(result.errorShown).toBe(false);
+  expect(result.errors).toEqual([]);
+  expect(result.days).toEqual(["2026-11-27"]);
+  expect(result.start).toBe("2026-11-27");
+});
+
+test("configure({ start }) is not pulled back to the previous active day", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "5");
+    picker.setAttribute("min", "2026-11-01");
+    picker.setAttribute("max", "2026-12-31");
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    const before = picker.start;
+    picker.configure({ start: "2026-12-01" });
+    await new Promise(requestAnimationFrame);
+    return { before, after: picker.start, range: picker.range, active: picker.activeDate };
+  });
+
+  expect(result.before).toBe("2026-11-17");
+  expect(result.after).toBe("2026-12-01");
+  expect(result.range.start).toBe("2026-12-01");
+  expect(result.active).toBe("2026-12-01");
+});
+
+test("min > max invalidates the in-flight load instead of repainting it", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "5");
+    host.append(picker);
+    document.body.append(host);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    /** @type {((value:unknown)=>void)|null} */
+    let resolveLoad = null;
+    picker.source = () => new Promise((resolve) => (resolveLoad = resolve));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    let loadend = 0;
+    picker.addEventListener("loadend", () => loadend++);
+    picker.configure({ min: "2026-12-01", max: "2026-11-01" });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    const invalid = picker.hasAttribute("data-invalid-range");
+    const loading = Boolean(picker.querySelector(".sp-status"));
+
+    resolveLoad?.([{ date: "2026-11-17", slots: [{ start: "09:00" }] }]);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    return { invalid, loading, days: picker.days.length, loadend };
+  });
+
+  expect(result.invalid).toBe(true);
+  expect(result.loading).toBe(false);
+  expect(result.days).toBe(0);
+  expect(result.loadend).toBe(0);
+});
+
+test("the selected slot is exposed as a selected option", async ({ page }) => {
+  await page.goto("/demo/index.html");
+
+  const picker = page.locator("#picker-columns");
+  await expect(picker.locator(".sp-slot").first()).toBeVisible();
+  await picker.locator(".sp-slot").first().click();
+
+  await expect(picker.getByRole("option", { selected: true })).toHaveText("13:35");
+  await expect(picker.getByRole("listbox").first()).toBeVisible();
+  await expect(picker.locator('.sp-slot[role="option"]').first()).toBeVisible();
+});
+
+test("value rejects an impossible civil date", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(() => {
+    const picker = document.createElement("slot-picker");
+    let threw = false;
+    try {
+      picker.value = "2026-02-31T10:00";
+    } catch (error) {
+      threw = error instanceof TypeError;
+    }
+    picker.value = "2026-02-28T10:00";
+    return { threw, accepted: picker.value };
+  });
+
+  expect(result.threw).toBe(true);
+  expect(result.accepted).toBe("2026-02-28T10:00");
+});

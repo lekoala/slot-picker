@@ -23,6 +23,19 @@ describe("slot model", () => {
     expect(day.slots.map((slot) => slot.start)).toEqual(["08:00", "19:00"]);
   });
 
+  test("rejects duplicate slot starts within a day", () => {
+    expect(() =>
+      normalizeDays([{ date: "2026-11-17", slots: [{ start: "10:00" }, { start: "10:00" }] }]),
+    ).toThrow(/Duplicate slot: 2026-11-17T10:00/);
+    // The same time on another day stays legitimate.
+    expect(() =>
+      normalizeDays([
+        { date: "2026-11-17", slots: [{ start: "10:00" }] },
+        { date: "2026-11-18", slots: [{ start: "10:00" }] },
+      ]),
+    ).not.toThrow();
+  });
+
   test("fills empty visible days", () => {
     const days = visibleDays([{ date: "2026-11-18", slots: [] }], "2026-11-17", 3);
     expect(days.map((day) => day.date)).toEqual(["2026-11-17", "2026-11-18", "2026-11-19"]);
