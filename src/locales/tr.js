@@ -1,0 +1,17 @@
+export default {
+  previous: "Önceki günler",
+  next: "Sonraki günler",
+  home: "Başa dön",
+  nextAvailability: "Sonraki uygunluk",
+  showMore: "Daha fazla uygunluk göster",
+  showLess: "Daha az göster",
+  unavailable: "Uygun değil",
+  loading: "Uygunluk yükleniyor",
+  empty: "Uygun zaman yok",
+  rangeEmptyTitle: "Bu dönemde uygun zaman yok",
+  rangeEmptyDescription: "{start} ile {end} arası",
+  rangeEmptyNext: "Sonraki dönemi gör",
+  oneSlot: "1 randevu",
+  manySlots: "{n} randevu",
+  days: "Günler",
+};

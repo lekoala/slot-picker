@@ -77,6 +77,22 @@
     <h2>Aucun créneau mais une notice</h2>
     <slot-picker id="picker-notice" start="2026-11-17" day-count="5"></slot-picker>
   </div>
+  <div class="card">
+    <h2>Messages / locale</h2>
+    <div class="row">
+      <label for="locale">Langue</label>
+      <select id="locale">
+        <option value="fr" selected>fr</option>
+        <option value="en">en</option>
+        <option value="ar">ar (RTL)</option>
+        <option value="de">de</option>
+        <option value="es">es</option>
+        <option value="ja">ja</option>
+      </select>
+      <output id="locale-output"></output>
+    </div>
+    <slot-picker id="picker-locale" start="2026-11-17" day-count="5" layout="day" min="2026-11-17" max="2026-12-15" home-date="2026-11-17"></slot-picker>
+  </div>
   <p id="output"></p>
   <script src="../dist/slot-picker.js"></script>
   <script>
@@ -178,13 +194,42 @@
     noticePicker.messages = fr;
     noticePicker.days = noticeDays;
 
+    const localePicker = document.querySelector("#picker-locale");
+    const localeSelect = document.querySelector("#locale");
+    const localeOutput = document.querySelector("#locale-output");
+    localePicker.days = days;
+    const localePacks = {
+      fr: () => import("../src/locales/fr.js"),
+      en: () => import("../src/locales/en.js"),
+      ar: () => import("../src/locales/ar.js"),
+      de: () => import("../src/locales/de.js"),
+      es: () => import("../src/locales/es.js"),
+      ja: () => import("../src/locales/ja.js")
+    };
+    async function applyLocale(code) {
+      localePicker.lang = code;
+      localePicker.dir = code === "ar" ? "rtl" : "ltr";
+      try {
+        const pack = (await localePacks[code]()).default;
+        localePicker.messages = pack;
+        localeOutput.textContent = "pack importé";
+      } catch {
+        localePicker.messages = fr;
+        localeOutput.textContent = "fallback fr (serveur requis)";
+      }
+    }
+    localeSelect.addEventListener("change", () => {
+      void applyLocale(localeSelect.value);
+    });
+    void applyLocale(localeSelect.value);
+
     const columnsPickers = [
       document.querySelector("#picker-columns"),
       document.querySelector("#picker-columns-narrow")
     ];
 
     const output = document.querySelector("#output");
-    [...pickers, responsivePicker, emptyPicker, noticePicker].forEach((picker) => {
+    [...pickers, responsivePicker, emptyPicker, noticePicker, localePicker].forEach((picker) => {
       picker.addEventListener("slotactivate", (event) => {
         output.textContent = `Selected: ${event.detail.value}`;
       });

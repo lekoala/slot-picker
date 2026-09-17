@@ -44,6 +44,74 @@
       "types": "./dist/types/define.d.ts",
       "import": "./src/define.js"
     },
+    "./locales/ar": {
+      "types": "./dist/types/locales/ar.d.ts",
+      "import": "./src/locales/ar.js"
+    },
+    "./locales/de": {
+      "types": "./dist/types/locales/de.d.ts",
+      "import": "./src/locales/de.js"
+    },
+    "./locales/en": {
+      "types": "./dist/types/locales/en.d.ts",
+      "import": "./src/locales/en.js"
+    },
+    "./locales/es": {
+      "types": "./dist/types/locales/es.d.ts",
+      "import": "./src/locales/es.js"
+    },
+    "./locales/fr": {
+      "types": "./dist/types/locales/fr.d.ts",
+      "import": "./src/locales/fr.js"
+    },
+    "./locales/hi": {
+      "types": "./dist/types/locales/hi.d.ts",
+      "import": "./src/locales/hi.js"
+    },
+    "./locales/id": {
+      "types": "./dist/types/locales/id.d.ts",
+      "import": "./src/locales/id.js"
+    },
+    "./locales/it": {
+      "types": "./dist/types/locales/it.d.ts",
+      "import": "./src/locales/it.js"
+    },
+    "./locales/ja": {
+      "types": "./dist/types/locales/ja.d.ts",
+      "import": "./src/locales/ja.js"
+    },
+    "./locales/ko": {
+      "types": "./dist/types/locales/ko.d.ts",
+      "import": "./src/locales/ko.js"
+    },
+    "./locales/nl": {
+      "types": "./dist/types/locales/nl.d.ts",
+      "import": "./src/locales/nl.js"
+    },
+    "./locales/pl": {
+      "types": "./dist/types/locales/pl.d.ts",
+      "import": "./src/locales/pl.js"
+    },
+    "./locales/pt-BR": {
+      "types": "./dist/types/locales/pt-BR.d.ts",
+      "import": "./src/locales/pt-BR.js"
+    },
+    "./locales/pt-PT": {
+      "types": "./dist/types/locales/pt-PT.d.ts",
+      "import": "./src/locales/pt-PT.js"
+    },
+    "./locales/ru": {
+      "types": "./dist/types/locales/ru.d.ts",
+      "import": "./src/locales/ru.js"
+    },
+    "./locales/tr": {
+      "types": "./dist/types/locales/tr.d.ts",
+      "import": "./src/locales/tr.js"
+    },
+    "./locales/zh-CN": {
+      "types": "./dist/types/locales/zh-CN.d.ts",
+      "import": "./src/locales/zh-CN.js"
+    },
     "./slot-picker.css": "./src/slot-picker.css",
     "./dist/slot-picker.js": "./dist/slot-picker.js",
     "./dist/slot-picker.min.js": "./dist/slot-picker.min.js",

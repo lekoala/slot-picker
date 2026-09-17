@@ -1,0 +1,17 @@
+export default {
+  previous: "Предыдущие дни",
+  next: "Следующие дни",
+  home: "Вернуться к началу",
+  nextAvailability: "Ближайшая доступность",
+  showMore: "Показать больше доступных слотов",
+  showLess: "Показать меньше",
+  unavailable: "Недоступно",
+  loading: "Загрузка доступности",
+  empty: "Нет доступных слотов",
+  rangeEmptyTitle: "На этот период нет доступных слотов",
+  rangeEmptyDescription: "С {start} по {end}",
+  rangeEmptyNext: "Показать следующий период",
+  oneSlot: "1 слот",
+  manySlots: "{n} слотов",
+  days: "Дни",
+};

@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>slot-picker locales fixture</title>
+  <link rel="stylesheet" href="/src/slot-picker.css">
+</head>
+<body>
+  <!-- Loads the ESM source graph so tests can exercise the public module API
+       (setDefaultMessages) against the very same message module as the element. -->
+  <script type="module">
+    import "/src/define.js";
+
+    window.__ready = true;
+  </script>
+</body>
+</html>

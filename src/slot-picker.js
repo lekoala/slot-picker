@@ -90,12 +90,15 @@ export class SlotPickerElement extends HTMLElement {
     "responsive",
     "home-date",
     "next-availability",
+    "locale",
+    "lang",
   ];
 
   /** @type {SlotDay[]} */
   #days = [];
   #sourceController = new SlotSourceController();
-  #messages = resolveMessages();
+  /** @type {Partial<typeof import("./messages.js").DEFAULT_MESSAGES>|null} */
+  #messages = null;
   #loading = false;
   /** @type {unknown} */
   #error = null;
@@ -318,10 +321,28 @@ export class SlotPickerElement extends HTMLElement {
     return this.#sourceController.source;
   }
 
-  /** @param {Record<string,string>|null} value */
+  /**
+   * Instance overrides only. Global defaults from `setDefaultMessages()` are
+   * resolved at render time, so they also reach already-created instances.
+   * @param {Partial<typeof import("./messages.js").DEFAULT_MESSAGES>|null} value
+   */
   set messages(value) {
-    this.#messages = resolveMessages(value);
+    this.#messages = value ? { ...value } : null;
     this.#queueRender();
+  }
+
+  /**
+   * Locale used for `Intl` formatting. `locale` wins over the native `lang`,
+   * then the document language, then the browser language.
+   */
+  get locale() {
+    const value = this.getAttribute("locale") || this.lang;
+    return value || document.documentElement.lang || navigator.language || "en";
+  }
+
+  set locale(value) {
+    if (!value) this.removeAttribute("locale");
+    else this.setAttribute("locale", value);
   }
 
   /** Resolved visible civil range. Empty and invalid when count is 0. */
@@ -613,7 +634,9 @@ export class SlotPickerElement extends HTMLElement {
     const count = this.visibleDayCount;
     const invalid = count === 0;
     const days = count ? visibleDays(this.#days, this.start, count) : [];
-    const locale = this.lang || document.documentElement.lang || "en";
+    // Resolve at render time so `setDefaultMessages()` reaches live instances.
+    const messages = resolveMessages(this.#messages);
+    const locale = this.locale;
     const canPrevious = !invalid && (!this.min || compareDates(this.start, this.min) > 0);
     const canNext = !invalid && (!this.max || compareDates(rangeEnd(this.start, count), this.max) < 0);
 
@@ -630,7 +653,7 @@ export class SlotPickerElement extends HTMLElement {
         invalid,
         canNext,
         locale,
-        messages: this.#messages,
+        messages,
       });
     } else if (this.layout === "day") {
       content = renderDay({
@@ -639,7 +662,7 @@ export class SlotPickerElement extends HTMLElement {
         today: todayValue(),
         value: this.value,
         focusedValue: this.#focusedValue,
-        messages: this.#messages,
+        messages,
         locale,
       }).html;
     } else {
@@ -649,7 +672,7 @@ export class SlotPickerElement extends HTMLElement {
         focusedValue: this.#focusedValue,
         maxVisibleRows: this.maxVisibleRows,
         expanded: this.expanded,
-        messages: this.#messages,
+        messages,
         locale,
       });
       content = rendered.html;
@@ -657,35 +680,35 @@ export class SlotPickerElement extends HTMLElement {
     }
 
     const status = this.#loading
-      ? `<div class="sp-status" role="status">${escapeHtml(this.#messages.loading)}</div>`
+      ? `<div class="sp-status" role="status">${escapeHtml(messages.loading)}</div>`
       : this.#error
         ? `<div class="sp-status sp-status-error" role="status">${escapeHtml(String(this.#error))}</div>`
         : "";
 
     const homeButton = this.hasAttribute("home-date")
-      ? `<button type="button" class="sp-nav sp-nav-home" aria-label="${escapeAttr(this.#messages.home)}"${invalid ? " disabled" : ""}>${HOME_ICON}</button>`
+      ? `<button type="button" class="sp-nav sp-nav-home" aria-label="${escapeAttr(messages.home)}"${invalid ? " disabled" : ""}>${HOME_ICON}</button>`
       : "";
     const availabilityButton = this.hasAttribute("next-availability")
-      ? `<button type="button" class="sp-nav sp-nav-availability" aria-label="${escapeAttr(this.#messages.nextAvailability)}"${invalid ? " disabled" : ""}>${AVAILABILITY_ICON}</button>`
+      ? `<button type="button" class="sp-nav sp-nav-availability" aria-label="${escapeAttr(messages.nextAvailability)}"${invalid ? " disabled" : ""}>${AVAILABILITY_ICON}</button>`
       : "";
 
     this.style.setProperty("--_sp-day-count", String(Math.max(1, count)));
     this.innerHTML = `<div class="sp-shell" data-layout="${this.layout}">
       <div class="sp-nav-group">
         ${homeButton}
-        <button type="button" class="sp-nav sp-nav-prev" aria-label="${escapeAttr(this.#messages.previous)}"${canPrevious ? "" : " disabled"}>${PREV_ICON}</button>
+        <button type="button" class="sp-nav sp-nav-prev" aria-label="${escapeAttr(messages.previous)}"${canPrevious ? "" : " disabled"}>${PREV_ICON}</button>
       </div>
       <div class="sp-content">
         ${status}
         ${content}
         ${
           hasOverflow
-            ? `<div class="sp-more"><button type="button" class="sp-more-button">${escapeHtml(this.expanded ? this.#messages.showLess : this.#messages.showMore)}</button></div>`
+            ? `<div class="sp-more"><button type="button" class="sp-more-button">${escapeHtml(this.expanded ? messages.showLess : messages.showMore)}</button></div>`
             : ""
         }
       </div>
       <div class="sp-nav-group">
-        <button type="button" class="sp-nav sp-nav-next" aria-label="${escapeAttr(this.#messages.next)}"${canNext ? "" : " disabled"}>${NEXT_ICON}</button>
+        <button type="button" class="sp-nav sp-nav-next" aria-label="${escapeAttr(messages.next)}"${canNext ? "" : " disabled"}>${NEXT_ICON}</button>
         ${availabilityButton}
       </div>
     </div>`;

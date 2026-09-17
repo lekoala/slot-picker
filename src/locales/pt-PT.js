@@ -1,0 +1,17 @@
+export default {
+  previous: "Dias anteriores",
+  next: "Dias seguintes",
+  home: "Voltar ao início",
+  nextAvailability: "Próxima disponibilidade",
+  showMore: "Mostrar mais disponibilidade",
+  showLess: "Mostrar menos",
+  unavailable: "Indisponível",
+  loading: "A carregar disponibilidade",
+  empty: "Sem disponibilidade",
+  rangeEmptyTitle: "Sem disponibilidade neste período",
+  rangeEmptyDescription: "De {start} a {end}",
+  rangeEmptyNext: "Ver o período seguinte",
+  oneSlot: "1 horário",
+  manySlots: "{n} horários",
+  days: "Dias",
+};

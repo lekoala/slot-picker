@@ -1,0 +1,17 @@
+export default {
+  previous: "前の日",
+  next: "次の日",
+  home: "最初に戻る",
+  nextAvailability: "次の空き",
+  showMore: "空きをさらに表示",
+  showLess: "表示を減らす",
+  unavailable: "予約不可",
+  loading: "空き状況を読み込み中",
+  empty: "空きがありません",
+  rangeEmptyTitle: "この期間に空きがありません",
+  rangeEmptyDescription: "{start} から {end} まで",
+  rangeEmptyNext: "次の期間を表示",
+  oneSlot: "1件",
+  manySlots: "{n}件",
+  days: "日",
+};

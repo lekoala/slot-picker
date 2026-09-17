@@ -23,7 +23,8 @@
             { "name": "expanded", "type": { "text": "boolean" } },
             { "name": "responsive", "type": { "text": "boolean" } },
             { "name": "home-date", "type": { "text": "string" } },
-            { "name": "next-availability", "type": { "text": "boolean" } }
+            { "name": "next-availability", "type": { "text": "boolean" } },
+            { "name": "locale", "type": { "text": "string" } }
           ],
           "events": [
             { "name": "rangechange" },

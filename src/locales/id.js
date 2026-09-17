@@ -1,0 +1,17 @@
+export default {
+  previous: "Hari sebelumnya",
+  next: "Hari berikutnya",
+  home: "Kembali ke awal",
+  nextAvailability: "Ketersediaan berikutnya",
+  showMore: "Tampilkan lebih banyak ketersediaan",
+  showLess: "Tampilkan lebih sedikit",
+  unavailable: "Tidak tersedia",
+  loading: "Memuat ketersediaan",
+  empty: "Tidak ada ketersediaan",
+  rangeEmptyTitle: "Tidak ada ketersediaan pada periode ini",
+  rangeEmptyDescription: "Dari {start} hingga {end}",
+  rangeEmptyNext: "Lihat periode berikutnya",
+  oneSlot: "1 slot",
+  manySlots: "{n} slot",
+  days: "Hari",
+};

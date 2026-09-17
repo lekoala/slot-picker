@@ -466,3 +466,77 @@ test("min > max is a distinguishable invalid range that never touches the source
   expect(result.date).toBe(null);
   expect(result.prevDisabled).toBe(true);
 });
+
+test("an imported locale pack drives Intl formatting and RTL without reversing chronology", async ({
+  page,
+}) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async (days) => {
+    const pack = (await import("/src/locales/ar.js")).default;
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "3");
+    picker.setAttribute("layout", "day");
+    picker.setAttribute("dir", "rtl");
+    picker.lang = "ar";
+    picker.messages = pack;
+    picker.days = days;
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    const nav = {
+      prev: picker.querySelector(".sp-nav-prev").getAttribute("aria-label"),
+      next: picker.querySelector(".sp-nav-next").getAttribute("aria-label"),
+    };
+    const panelTitle = picker.querySelector(".sp-panel-title").textContent;
+    const firstStrip = picker.querySelector(".sp-strip-day").getAttribute("data-date");
+    const svgTransform = getComputedStyle(picker.querySelector(".sp-nav-prev svg")).transform;
+    const before = picker.range;
+    picker.next();
+    await new Promise(requestAnimationFrame);
+    return { nav, panelTitle, firstStrip, svgTransform, before, after: picker.range };
+  }, FIVE_DAYS);
+
+  expect(result.nav.prev).toBe("الأيام السابقة");
+  expect(result.nav.next).toBe("الأيام التالية");
+  expect(result.panelTitle).toMatch(/[\u0600-\u06ff]/);
+  expect(result.firstStrip).toBe("2026-11-17");
+  expect(result.svgTransform).not.toBe("none");
+  // Chronology is unaffected by RTL: next still moves forward in time.
+  expect(result.before).toEqual({ start: "2026-11-17", end: "2026-11-19", dayCount: 3 });
+  expect(result.after.start).toBe("2026-11-20");
+});
+
+test("setDefaultMessages reaches an already-created instance", async ({ page }) => {
+  // The ESM fixture shares one messages module between the element and the
+  // public API; the demo bundle would be a separate module instance.
+  await page.goto("/test/fixtures/locales.html");
+  await page.waitForFunction(() => window.__ready);
+
+  const labels = await page.evaluate(async (days) => {
+    const { setDefaultMessages } = await import("/src/index.js");
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "3");
+    picker.days = days;
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    const before = picker.querySelector(".sp-nav-next").getAttribute("aria-label");
+    setDefaultMessages({ next: "Suivant" });
+    // Global defaults are resolved lazily: the next render picks them up.
+    picker.days = days;
+    await new Promise(requestAnimationFrame);
+    const after = picker.querySelector(".sp-nav-next").getAttribute("aria-label");
+    return { before, after };
+  }, FIVE_DAYS);
+
+  expect(labels.before).toBe("Next days");
+  expect(labels.after).toBe("Suivant");
+});

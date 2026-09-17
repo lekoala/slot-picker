@@ -1,0 +1,17 @@
+export default {
+  previous: "前几天",
+  next: "后几天",
+  home: "返回起始",
+  nextAvailability: "下一个可预约时间",
+  showMore: "显示更多可预约时间",
+  showLess: "收起",
+  unavailable: "不可预约",
+  loading: "正在加载可预约时间",
+  empty: "暂无可预约时间",
+  rangeEmptyTitle: "该时间段暂无可预约时间",
+  rangeEmptyDescription: "从 {start} 到 {end}",
+  rangeEmptyNext: "查看下一个时间段",
+  oneSlot: "1 个时段",
+  manySlots: "{n} 个时段",
+  days: "日期",
+};

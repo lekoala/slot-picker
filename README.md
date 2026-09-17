@@ -109,6 +109,43 @@ A window with no slot and no notice renders a range empty state
 keeps its normal projection, so "exceptionally unavailable" stays distinct from
 "no availability".
 
+## Locales
+
+`Intl` already localizes weekday and month names from the component's `locale`
+(or `lang`). Message packs only provide the UI strings:
+
+```js
+import fr from "@lekoala/slot-picker/locales/fr";
+
+picker.messages = fr;
+```
+
+Or set a global default once:
+
+```js
+import { setDefaultMessages } from "@lekoala/slot-picker";
+import fr from "@lekoala/slot-picker/locales/fr";
+
+setDefaultMessages(fr);
+```
+
+Resolution order: `DEFAULT_MESSAGES`, then global defaults, then the instance
+`messages`. Global defaults are resolved at render time, so
+`setDefaultMessages()` also reaches instances that already exist on their next
+render. Packs are never auto-imported, which keeps them tree-shakable.
+
+Included packs: `ar`, `de`, `en`, `es`, `fr`, `hi`, `id`, `it`, `ja`, `ko`,
+`nl`, `pl`, `pt-BR`, `pt-PT`, `ru`, `tr`, `zh-CN`.
+
+These are provided message packs to review, not fully localized copy:
+pluralization is intentionally simple (`oneSlot` / `manySlots` with `{n}`) and
+does not use `Intl.PluralRules`.
+
+Locale priority for formatting: `locale` attribute, then `lang`, then
+`document.documentElement.lang`, then `navigator.language`. Only `locale`/`lang`
+set on the component is observed; changing the document language does not
+re-render existing pickers, and no global `MutationObserver` is used.
+
 ## Data shape
 
 ```js

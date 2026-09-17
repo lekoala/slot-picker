@@ -1,0 +1,17 @@
+export default {
+  previous: "Vorige dagen",
+  next: "Volgende dagen",
+  home: "Terug naar begin",
+  nextAvailability: "Volgende beschikbaarheid",
+  showMore: "Meer beschikbaarheid tonen",
+  showLess: "Minder tonen",
+  unavailable: "Niet beschikbaar",
+  loading: "Beschikbaarheid laden",
+  empty: "Geen beschikbaarheid",
+  rangeEmptyTitle: "Geen beschikbaarheid in deze periode",
+  rangeEmptyDescription: "Van {start} tot {end}",
+  rangeEmptyNext: "Volgende periode bekijken",
+  oneSlot: "1 tijdslot",
+  manySlots: "{n} tijdsloten",
+  days: "Dagen",
+};

@@ -1,5 +1,5 @@
 export { addDays, compareDates, daysBetween, isDateValue, rangeEnd, todayValue } from "./date.js";
-export { DEFAULT_MESSAGES, resolveMessages } from "./messages.js";
+export { DEFAULT_MESSAGES, getDefaultMessages, resolveMessages, setDefaultMessages } from "./messages.js";
 export {
   boundedDayCount,
   clampStart,

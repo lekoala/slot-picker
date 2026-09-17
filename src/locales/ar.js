@@ -1,0 +1,17 @@
+export default {
+  previous: "الأيام السابقة",
+  next: "الأيام التالية",
+  home: "العودة إلى البداية",
+  nextAvailability: "التوفر التالي",
+  showMore: "إظهار مزيد من التوفر",
+  showLess: "إظهار أقل",
+  unavailable: "غير متاح",
+  loading: "جارٍ تحميل التوفر",
+  empty: "لا يوجد توفر",
+  rangeEmptyTitle: "لا يوجد أي موعد متاح في هذه الفترة",
+  rangeEmptyDescription: "من {start} إلى {end}",
+  rangeEmptyNext: "عرض الفترة التالية",
+  oneSlot: "موعد واحد",
+  manySlots: "{n} مواعيد",
+  days: "الأيام",
+};

@@ -1,0 +1,17 @@
+export default {
+  previous: "पिछले दिन",
+  next: "अगले दिन",
+  home: "शुरुआत पर वापस जाएँ",
+  nextAvailability: "अगली उपलब्धता",
+  showMore: "और उपलब्धताएँ दिखाएँ",
+  showLess: "कम दिखाएँ",
+  unavailable: "अनुपलब्ध",
+  loading: "उपलब्धता लोड हो रही है",
+  empty: "कोई उपलब्धता नहीं",
+  rangeEmptyTitle: "इस अवधि में कोई स्लॉट उपलब्ध नहीं",
+  rangeEmptyDescription: "{start} से {end} तक",
+  rangeEmptyNext: "अगली अवधि देखें",
+  oneSlot: "1 स्लॉट",
+  manySlots: "{n} स्लॉट",
+  days: "दिन",
+};

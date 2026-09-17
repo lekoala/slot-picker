@@ -1,0 +1,17 @@
+export default {
+  previous: "Vorherige Tage",
+  next: "Nächste Tage",
+  home: "Zurück zum Anfang",
+  nextAvailability: "Nächste Verfügbarkeit",
+  showMore: "Mehr Verfügbarkeiten anzeigen",
+  showLess: "Weniger anzeigen",
+  unavailable: "Nicht verfügbar",
+  loading: "Verfügbarkeiten werden geladen",
+  empty: "Keine Verfügbarkeit",
+  rangeEmptyTitle: "Keine Verfügbarkeit in diesem Zeitraum",
+  rangeEmptyDescription: "Vom {start} bis {end}",
+  rangeEmptyNext: "Nächsten Zeitraum anzeigen",
+  oneSlot: "1 Termin",
+  manySlots: "{n} Termine",
+  days: "Tage",
+};

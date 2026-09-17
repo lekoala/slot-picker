@@ -16,9 +16,28 @@ const DEFAULT_MESSAGES = {
   days: "Days",
 };
 
-/** @param {Partial<typeof DEFAULT_MESSAGES>|null|undefined} [messages] */
+let defaults = { ...DEFAULT_MESSAGES };
+
+/** Copy of the current global message defaults. */
+export function getDefaultMessages() {
+  return { ...defaults };
+}
+
+/**
+ * Update the global defaults applied to every instance without its own
+ * `messages` override. Merges into the current defaults.
+ * @param {Partial<typeof DEFAULT_MESSAGES>|null|undefined} messages
+ */
+export function setDefaultMessages(messages) {
+  defaults = { ...defaults, ...(messages ?? {}) };
+}
+
+/**
+ * Resolution hierarchy: DEFAULT_MESSAGES -> global defaults -> instance.
+ * @param {Partial<typeof DEFAULT_MESSAGES>|null|undefined} messages
+ */
 export function resolveMessages(messages) {
-  return { ...DEFAULT_MESSAGES, ...(messages ?? {}) };
+  return { ...defaults, ...(messages ?? {}) };
 }
 
 export { DEFAULT_MESSAGES };
