@@ -24,6 +24,11 @@
             { "name": "responsive", "type": { "text": "boolean" } },
             { "name": "home-date", "type": { "text": "string" } },
             { "name": "next-availability", "type": { "text": "boolean" } },
+            {
+              "name": "notice-display",
+              "type": { "text": "\"inline\" | \"action\" | \"none\"" },
+              "default": "action"
+            },
             { "name": "locale", "type": { "text": "string" } }
           ],
           "events": [

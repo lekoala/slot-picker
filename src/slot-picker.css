@@ -80,6 +80,8 @@
   font-weight: 650;
 }
 
+/* Notice indicator. Without `data-day-index` it is decorative; with it, it is
+   the accessible control used by notice-display="action". */
 .sp-notice {
   position: absolute;
   inset-block-start: 0;
@@ -88,18 +90,21 @@
   place-items: center;
   inline-size: 1.5rem;
   block-size: 1.5rem;
+  color: var(--sp-muted);
+  pointer-events: none;
+}
+
+.sp-notice[data-day-index] {
+  pointer-events: auto;
   padding: 0;
   border: 0;
   border-radius: 50%;
   background: transparent;
-  color: var(--sp-muted);
   cursor: pointer;
-  transition:
-    background-color 120ms ease,
-    color 120ms ease;
+  transition: background-color 120ms ease;
 }
 
-.sp-notice:hover {
+.sp-notice[data-day-index]:hover {
   background: var(--sp-notice-hover-bg);
   color: var(--sp-fg);
 }
@@ -340,7 +345,14 @@ html[dir="rtl"] .sp-nav svg {
   gap: var(--sp-gap);
 }
 
-.sp-panel-notice {
+/* Readable notice. Non-interactive: the control is the dot. Overflow is
+   structurally contained so it can never bleed into the next column. */
+.sp-day-notice {
+  display: block;
+  box-sizing: border-box;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  overflow: hidden;
   margin-block-end: 0.75rem;
   padding: 0.75rem 1rem;
   border-radius: var(--sp-radius);
@@ -348,14 +360,39 @@ html[dir="rtl"] .sp-nav svg {
   text-align: center;
 }
 
-.sp-panel-notice-label {
-  display: block;
+.sp-day-notice-label {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   margin-block-end: 0.25rem;
+}
+
+/* The description stays in the DOM in every projection; the layout decides
+   how much is revealed. Themes may override either rule. */
+.sp-day-notice-description {
+  display: none;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  overflow-wrap: anywhere;
+  margin: 0;
+  color: var(--sp-muted);
+  font-size: 0.9rem;
+}
+
+slot-picker[layout="day"] .sp-day-notice-label {
+  display: block;
+  -webkit-line-clamp: unset;
+}
+
+slot-picker[layout="day"] .sp-day-notice-description {
+  display: block;
 }
 
 .sp-nav:focus-visible,
 .sp-more-button:focus-visible,
-.sp-notice:focus-visible,
+.sp-notice[data-day-index]:focus-visible,
 .sp-strip-day:focus-visible {
   outline: 2px solid var(--sp-focus);
   outline-offset: 2px;
@@ -375,7 +412,11 @@ html[dir="rtl"] .sp-nav svg {
     border-color: ButtonText;
   }
 
+  .sp-day-notice {
+    border: 1px solid ButtonText;
+  }
+
   .sp-notice-dot {
-    background: ButtonText;
+    background: CanvasText;
   }
 }

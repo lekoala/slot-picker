@@ -90,6 +90,7 @@ export class SlotPickerElement extends HTMLElement {
     "responsive",
     "home-date",
     "next-availability",
+    "notice-display",
     "locale",
     "lang",
   ];
@@ -280,6 +281,26 @@ export class SlotPickerElement extends HTMLElement {
   set layout(value) {
     if (value !== "columns" && value !== "day") throw new TypeError('layout must be "columns" or "day"');
     this.setAttribute("layout", value);
+  }
+
+  /**
+   * Notice projection strategy:
+   * - `action` (default) renders only an accessible control that emits
+   *   `noticeactivate`, so the application owns the detailed presentation;
+   * - `inline` additionally renders the readable notice content, which stays
+   *   non-interactive;
+   * - `none` renders nothing.
+   */
+  get noticeDisplay() {
+    const value = this.getAttribute("notice-display");
+    return value === "inline" || value === "none" ? value : "action";
+  }
+
+  set noticeDisplay(value) {
+    if (value !== "inline" && value !== "action" && value !== "none") {
+      throw new TypeError('notice-display must be "inline", "action" or "none"');
+    }
+    this.setAttribute("notice-display", value);
   }
 
   get expanded() {
@@ -662,6 +683,7 @@ export class SlotPickerElement extends HTMLElement {
         today: todayValue(),
         value: this.value,
         focusedValue: this.#focusedValue,
+        noticeDisplay: this.noticeDisplay,
         messages,
         locale,
       }).html;
@@ -672,6 +694,7 @@ export class SlotPickerElement extends HTMLElement {
         focusedValue: this.#focusedValue,
         maxVisibleRows: this.maxVisibleRows,
         expanded: this.expanded,
+        noticeDisplay: this.noticeDisplay,
         messages,
         locale,
       });
@@ -750,12 +773,20 @@ export class SlotPickerElement extends HTMLElement {
       return;
     }
 
-    const notice = target.closest(".sp-notice");
+    // `noticeactivate` belongs to the explicit control, never to displayed
+    // text, so there is no mouse-only activation.
+    const notice = target.closest(".sp-notice[data-day-index]");
     if (notice instanceof HTMLElement) {
       const dayIndex = Number(notice.getAttribute("data-day-index"));
       const day = visibleDays(this.#days, this.start, this.visibleDayCount)[dayIndex];
-      if (day?.notice)
-        this.dispatchEvent(new CustomEvent("noticeactivate", { detail: { day, notice: day.notice } }));
+      if (day?.notice) {
+        this.dispatchEvent(
+          new CustomEvent("noticeactivate", {
+            detail: { day, notice: day.notice, anchor: notice },
+            bubbles: true,
+          }),
+        );
+      }
       return;
     }
 

@@ -109,6 +109,29 @@ A window with no slot and no notice renders a range empty state
 keeps its normal projection, so "exceptionally unavailable" stays distinct from
 "no availability".
 
+A day notice is never a fake slot. `notice-display` chooses how it projects:
+
+- `action` (default) renders only a real control (the dot button) with an
+  accessible name; no inline text. It emits `noticeactivate` so the
+  application opens a modal, a popover or anything else.
+- `inline` additionally renders the readable notice content: a compact label in
+  `columns` (description kept in the DOM, revealed by themes) and the full
+  label + description in `day`. The text itself is never interactive, and it
+  never overflows its column.
+- `none` renders nothing; the application owns the notice elsewhere.
+
+```js
+picker.addEventListener("noticeactivate", ({ detail }) => {
+  // detail = { day, notice, anchor }
+  openModal({ title: detail.notice.label, body: detail.notice.description });
+  // or: showPopover({ anchor: detail.anchor, ...detail.notice });
+});
+```
+
+`noticeactivate` bubbles, has no default behavior, and is only emitted from an
+explicit control. The component never embeds a tooltip, popover or floating
+engine.
+
 ## Locales
 
 `Intl` already localizes weekday and month names from the component's `locale`
@@ -176,7 +199,7 @@ Dates are civil `YYYY-MM-DD`, times are `HH:mm`, and the selected value is
 - `rangechange` — the visible civil range changed.
 - `daychange` — the consulted day (`activeDate`) changed; never selects a slot.
 - `slotactivate` — the user explicitly chose a slot (sets `activeDate` first).
-- `noticeactivate` — the user activated a day notice.
+- `noticeactivate` — the user activated a day notice control (bubbles, detail `{ day, notice, anchor }`, no default behavior).
 - `nextrequest` — no `source.next` was available; detail is `{ after }`.
 - `loadstart` / `loadend` / `loaderror` — optional remote-source lifecycle.
 

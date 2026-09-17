@@ -5,7 +5,8 @@ import {
   enabledValues,
   escapeAttr,
   escapeHtml,
-  noticeButton,
+  noticeBlock,
+  noticeIndicator,
   rovingValue,
   slotButton,
 } from "./shared.js";
@@ -20,9 +21,18 @@ const UTC_FORMAT = { timeZone: "UTC" };
  * Empty days render a real DOM empty state (messages.empty); alignment
  * placeholders are aria-hidden and only used when the day has slots
  * but fewer rows than the visible grid.
- * @param {{visible:SlotDay[],value:string,focusedValue:string,maxVisibleRows:number,expanded:boolean,messages:ColumnsMessages,locale:string}} options
+ * @param {{visible:SlotDay[],value:string,focusedValue:string,maxVisibleRows:number,expanded:boolean,noticeDisplay:"inline"|"action"|"none",messages:ColumnsMessages,locale:string}} options
  */
-export function renderColumns({ visible, value, focusedValue, maxVisibleRows, expanded, messages, locale }) {
+export function renderColumns({
+  visible,
+  value,
+  focusedValue,
+  maxVisibleRows,
+  expanded,
+  noticeDisplay,
+  messages,
+  locale,
+}) {
   const formatterDay = new Intl.DateTimeFormat(locale, { weekday: "short", ...UTC_FORMAT });
   const formatterDate = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", ...UTC_FORMAT });
   // Collapse before computing roving focus: the single tabbable value must be
@@ -39,11 +49,20 @@ export function renderColumns({ visible, value, focusedValue, maxVisibleRows, ex
         const date = toUtcDate(day.date);
         const weekday = formatterDay.format(date);
         const displayDate = formatterDate.format(date);
-        const notice = day.notice ? noticeButton({ dayIndex, ...day.notice }) : "";
+        const inline = noticeDisplay === "inline";
+        const action = noticeDisplay === "action";
+        // The dot is the only control (when the notice is projected at all).
+        // `inline` additionally renders the readable block, which never
+        // activates anything.
+        const headerNotice =
+          day.notice && (inline || action)
+            ? noticeIndicator({ interactive: true, dayIndex, ...day.notice })
+            : "";
+        const noticeContent = day.notice && inline ? noticeBlock(day.notice) : "";
 
         let body;
         if (day.slots.length === 0) {
-          body = dayEmpty(messages.empty);
+          body = `${noticeContent}${dayEmpty(messages.empty)}`;
         } else {
           const slots = day.slots;
           const slotMarkup = slots
@@ -65,14 +84,14 @@ export function renderColumns({ visible, value, focusedValue, maxVisibleRows, ex
             { length: Math.max(0, rows - slots.length) },
             () => '<span class="sp-empty" aria-hidden="true">–</span>',
           ).join("");
-          body = `<div class="sp-slots">${slotMarkup}${empties}</div>`;
+          body = `${noticeContent}<div class="sp-slots">${slotMarkup}${empties}</div>`;
         }
 
         return `<section class="sp-day" data-date="${escapeAttr(day.date)}">
         <header class="sp-day-header">
           <span class="sp-weekday">${escapeHtml(weekday)}</span>
           <strong class="sp-date">${escapeHtml(displayDate)}</strong>
-          ${notice}
+          ${headerNotice}
         </header>
         ${body}
       </section>`;

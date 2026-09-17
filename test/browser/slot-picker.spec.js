@@ -541,22 +541,109 @@ test("setDefaultMessages reaches an already-created instance", async ({ page }) 
   expect(labels.after).toBe("Suivant");
 });
 
-test("hovering a day notice raises a visible affordance", async ({ page }) => {
+test("notice-display defaults to action", async ({ page }) => {
   await page.goto("/demo/index.html");
 
-  const notice = page.locator("#picker-columns .sp-notice").first();
-  await notice.scrollIntoViewIfNeeded();
-  const before = await notice.evaluate((element) => getComputedStyle(element).backgroundColor);
+  const result = await page.evaluate(() => {
+    const picker = document.querySelector("#picker-columns");
+    const day = picker.querySelector('.sp-day[data-date="2026-11-21"]');
+    const control = day.querySelector(".sp-notice[data-day-index]");
+    return {
+      controlTag: control ? control.tagName : "",
+      blocks: picker.querySelectorAll(".sp-day-notice").length,
+    };
+  });
 
-  await notice.hover();
-  await page.waitForTimeout(200);
-  const after = await notice.evaluate((element) => getComputedStyle(element).backgroundColor);
-
-  expect(after).not.toBe(before);
-  expect(after).not.toBe("rgba(0, 0, 0, 0)");
+  expect(result.controlTag).toBe("BUTTON");
+  expect(result.blocks).toBe(0);
 });
 
-test("day projection anchors a notice dot inside the panel header", async ({ page }) => {
+test("activating the notice control dispatches noticeactivate with its anchor", async ({ page }) => {
+  await page.goto("/demo/index.html");
+
+  const result = await page.evaluate(() => {
+    const picker = document.querySelector("#picker-columns");
+    let detail = null;
+    picker.addEventListener("noticeactivate", (event) => {
+      detail = event.detail;
+    });
+    const control = picker.querySelector('.sp-day[data-date="2026-11-21"] .sp-notice[data-day-index]');
+    control.click();
+    return {
+      label: detail ? detail.notice.label : "",
+      anchorIsControl: detail ? detail.anchor === control : false,
+      value: picker.getAttribute("value"),
+    };
+  });
+
+  expect(result.label).toBe("Indisponibilité exceptionnelle");
+  expect(result.anchorIsControl).toBe(true);
+  expect(result.value).toBe(null);
+});
+
+test("noticeactivate bubbles from the control", async ({ page }) => {
+  await page.goto("/demo/index.html");
+
+  const bubbled = await page.evaluate(() => {
+    let seen = false;
+    document.body.addEventListener("noticeactivate", () => {
+      seen = true;
+    });
+    const picker = document.querySelector("#picker-columns");
+    picker.querySelector('.sp-day[data-date="2026-11-21"] .sp-notice[data-day-index]').click();
+    return seen;
+  });
+
+  expect(bubbled).toBe(true);
+});
+
+test("inline columns renders readable text plus a single control", async ({ page }) => {
+  await page.goto("/demo/index.html");
+
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "360px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "3");
+    picker.setAttribute("notice-display", "inline");
+    picker.days = [
+      { date: "2026-11-17", slots: [{ start: "09:00" }] },
+      { date: "2026-11-18", slots: [{ start: "09:00" }] },
+      {
+        date: "2026-11-19",
+        slots: [],
+        notice: { label: "Indisponibilité exceptionnelle", description: "Le praticien est absent." },
+      },
+    ];
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    const day = picker.querySelector('.sp-day[data-date="2026-11-19"]');
+    const block = day.querySelector(".sp-day-notice");
+    const description = block.querySelector(".sp-day-notice-description");
+    const control = day.querySelector(".sp-notice[data-day-index]");
+    return {
+      blockTag: block.tagName,
+      label: block.querySelector(".sp-day-notice-label").textContent.trim(),
+      description: description.textContent.trim(),
+      descriptionDisplay: getComputedStyle(description).display,
+      controlTag: control.tagName,
+      hasEmpty: Boolean(day.querySelector(".sp-day-empty")),
+    };
+  });
+
+  expect(result.blockTag).toBe("DIV");
+  expect(result.label).toBe("Indisponibilité exceptionnelle");
+  // Description stays in the DOM for themes, but is not spread out in columns.
+  expect(result.description).toBe("Le praticien est absent.");
+  expect(result.descriptionDisplay).toBe("none");
+  expect(result.controlTag).toBe("BUTTON");
+  expect(result.hasEmpty).toBe(true);
+});
+
+test("inline day reveals the full notice without a control", async ({ page }) => {
   await page.goto("/demo/index.html");
 
   const result = await page.evaluate(async () => {
@@ -567,6 +654,7 @@ test("day projection anchors a notice dot inside the panel header", async ({ pag
     picker.setAttribute("day-count", "3");
     picker.setAttribute("layout", "day");
     picker.setAttribute("active-date", "2026-11-18");
+    picker.setAttribute("notice-display", "inline");
     picker.days = [
       { date: "2026-11-17", slots: [{ start: "09:00" }] },
       {
@@ -580,19 +668,237 @@ test("day projection anchors a notice dot inside the panel header", async ({ pag
     document.body.append(host);
     await new Promise(requestAnimationFrame);
 
-    const notice = picker.querySelector(".sp-panel-header .sp-notice");
-    const header = picker.querySelector(".sp-panel-header");
-    if (!(notice instanceof HTMLElement) || !(header instanceof HTMLElement)) return { found: false };
-    const n = notice.getBoundingClientRect();
-    const h = header.getBoundingClientRect();
+    const block = picker.querySelector(".sp-panel .sp-day-notice");
+    const description = block.querySelector(".sp-day-notice-description");
     return {
-      found: true,
-      anchored: Math.abs(n.top - h.top) <= 1 && Math.abs(n.right - h.right) <= 1,
-      insidePicker: n.left >= picker.getBoundingClientRect().left,
+      blockTag: block.tagName,
+      label: block.querySelector(".sp-day-notice-label").textContent.trim(),
+      description: description.textContent.trim(),
+      display: getComputedStyle(description).display,
+      panelControls: picker.querySelectorAll(".sp-panel-header .sp-notice").length,
+      slots: picker.querySelectorAll(".sp-panel-slots .sp-slot").length,
+    };
+  });
+
+  expect(result.blockTag).toBe("DIV");
+  expect(result.label).toBe("Exceptionally unavailable");
+  expect(result.description).toBe("The practitioner is away.");
+  expect(result.display).toBe("block");
+  // Displayed text is not a control.
+  expect(result.panelControls).toBe(0);
+  expect(result.slots).toBe(1);
+});
+
+test("inline notice never overflows a narrow column", async ({ page }) => {
+  await page.goto("/demo/index.html");
+
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "360px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "3");
+    picker.setAttribute("notice-display", "inline");
+    picker.days = [
+      { date: "2026-11-17", slots: [{ start: "09:00" }] },
+      { date: "2026-11-18", slots: [{ start: "09:00" }] },
+      {
+        date: "2026-11-19",
+        slots: [],
+        notice: {
+          label: "IndisponibilitéExceptionnelleSansEspacesTrèsLongue",
+          description: "DescriptionSansEspacesTrèsLongueAussi",
+        },
+      },
+    ];
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    const day = picker.querySelector('.sp-day[data-date="2026-11-19"]');
+    const block = day.querySelector(".sp-day-notice");
+    const label = block.querySelector(".sp-day-notice-label");
+    const d = day.getBoundingClientRect();
+    const b = block.getBoundingClientRect();
+    const l = label.getBoundingClientRect();
+    const within = (inner, outer) => inner.left >= outer.left - 1 && inner.right <= outer.right + 1;
+    return {
+      blockWithinDay: within(b, d),
+      labelWithinDay: within(l, d),
+      blockWidth: b.width,
+      dayWidth: d.width,
+    };
+  });
+
+  expect(result.blockWithinDay).toBe(true);
+  expect(result.labelWithinDay).toBe(true);
+  expect(result.blockWidth).toBeLessThanOrEqual(result.dayWidth + 1);
+});
+
+test("inline columns keeps a notice and its slots side by side", async ({ page }) => {
+  await page.goto("/demo/index.html");
+
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "900px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "2");
+    picker.setAttribute("notice-display", "inline");
+    picker.days = [
+      {
+        date: "2026-11-17",
+        slots: [{ start: "09:00" }, { start: "10:00" }],
+        notice: { label: "Late opening", description: "Doors open at 10:00." },
+      },
+      { date: "2026-11-18", slots: [{ start: "09:00" }] },
+    ];
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+    const day = picker.querySelector('.sp-day[data-date="2026-11-17"]');
+    return {
+      notice: Boolean(day.querySelector(".sp-day-notice")),
+      slots: day.querySelectorAll(".sp-slot").length,
+    };
+  });
+
+  expect(result.notice).toBe(true);
+  expect(result.slots).toBe(2);
+});
+
+test("notice-display=action keeps an accessible control with its anchor", async ({ page }) => {
+  await page.goto("/demo/index.html");
+
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "900px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "3");
+    picker.setAttribute("notice-display", "action");
+    picker.days = [
+      { date: "2026-11-17", slots: [{ start: "09:00" }] },
+      { date: "2026-11-18", slots: [], notice: { label: "Exceptionally unavailable", description: "Away." } },
+      { date: "2026-11-19", slots: [{ start: "09:00" }] },
+    ];
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    let bubbled = false;
+    let anchor = null;
+    host.addEventListener("noticeactivate", (event) => {
+      bubbled = true;
+      anchor = event.detail.anchor;
+    });
+
+    const button = picker.querySelector('.sp-day[data-date="2026-11-18"] .sp-notice[data-day-index]');
+    const inlineBlocks = picker.querySelectorAll(".sp-day-notice").length;
+    button.click();
+    return {
+      inlineBlocks,
+      buttonTag: button.tagName,
+      ariaLabel: button.getAttribute("aria-label"),
+      title: button.getAttribute("title"),
+      anchorIsButton: anchor === button,
+      bubbled,
+    };
+  });
+
+  expect(result.inlineBlocks).toBe(0);
+  expect(result.buttonTag).toBe("BUTTON");
+  expect(result.ariaLabel).toBe("Away.");
+  expect(result.title).toBe("Exceptionally unavailable");
+  expect(result.anchorIsButton).toBe(true);
+  expect(result.bubbled).toBe(true);
+});
+
+test("notice-display=action places the control in the day panel header", async ({ page }) => {
+  await page.goto("/demo/index.html");
+
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "3");
+    picker.setAttribute("layout", "day");
+    picker.setAttribute("active-date", "2026-11-18");
+    picker.setAttribute("notice-display", "action");
+    picker.days = [
+      { date: "2026-11-17", slots: [{ start: "09:00" }] },
+      { date: "2026-11-18", slots: [{ start: "09:00" }], notice: { label: "Late opening" } },
+      { date: "2026-11-19", slots: [{ start: "09:00" }] },
+    ];
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    const button = picker.querySelector(".sp-panel-header .sp-notice[data-day-index]");
+    return {
+      found: Boolean(button),
+      inlineBlocks: picker.querySelectorAll(".sp-day-notice").length,
     };
   });
 
   expect(result.found).toBe(true);
-  expect(result.anchored).toBe(true);
-  expect(result.insidePicker).toBe(true);
+  expect(result.inlineBlocks).toBe(0);
+});
+
+test("notice-display=none renders nothing for a notice day", async ({ page }) => {
+  await page.goto("/demo/index.html");
+
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "900px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "2");
+    picker.setAttribute("notice-display", "none");
+    picker.days = [
+      { date: "2026-11-17", slots: [{ start: "09:00" }] },
+      { date: "2026-11-18", slots: [], notice: { label: "Unavailable", description: "Away." } },
+    ];
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    const day = picker.querySelector('.sp-day[data-date="2026-11-18"]');
+    return {
+      indicators: day.querySelectorAll(".sp-notice").length,
+      blocks: day.querySelectorAll(".sp-day-notice").length,
+      empty: Boolean(day.querySelector(".sp-day-empty")),
+    };
+  });
+
+  expect(result.indicators).toBe(0);
+  expect(result.blocks).toBe(0);
+  expect(result.empty).toBe(true);
+});
+
+test("demo opens a basic popover anchored on noticeactivate", async ({ page }) => {
+  await page.goto("/demo/index.html");
+
+  const control = page.locator('#picker-columns .sp-day[data-date="2026-11-21"] .sp-notice[data-day-index]');
+  await control.click();
+
+  const popover = page.locator("#notice-popover");
+  await expect(popover).toBeVisible();
+  await expect(page.locator("#notice-popover-title")).toHaveText("Indisponibilité exceptionnelle");
+  await expect(page.locator("#notice-popover-body")).toContainText("praticien");
+
+  const anchored = await page.evaluate(() => {
+    const anchor = document
+      .querySelector('#picker-columns .sp-day[data-date="2026-11-21"] .sp-notice[data-day-index]')
+      .getBoundingClientRect();
+    const rect = document.querySelector("#notice-popover").getBoundingClientRect();
+    const below = Math.abs(rect.top - (anchor.bottom + 8)) <= 1;
+    const above = Math.abs(rect.bottom - (anchor.top - 8)) <= 1;
+    return below || above;
+  });
+  expect(anchored).toBe(true);
+
+  await page.keyboard.press("Escape");
+  await expect(popover).toBeHidden();
 });

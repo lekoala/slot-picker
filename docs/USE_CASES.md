@@ -46,9 +46,15 @@ Acceptance:
 
 - the notice is distinct from an appointment slot;
 - it does not become a fake slot;
-- it has an accessible label;
-- activation dispatches `noticeactivate`;
-- presentation can stay compact without embedding a tooltip positioning engine.
+- `notice-display` selects the projection strategy: `action` (default), `inline`, or `none`;
+- `action` renders only a real control (the dot button) with an accessible name; no inline text is shown;
+- `inline` additionally renders the readable notice content, by layout: compact label in `columns` (description kept in the DOM, revealed by themes) and full label + description in `day`;
+- `inline` never overflows its column, even with an unbroken long label;
+- displayed notice text is never interactive: `noticeactivate` belongs to an explicit control only, so there is no mouse-only activation;
+- `notice-display="action"` renders the control in the day header (`columns`) or the panel header (`day`); `inline` keeps it in `columns` and relies on the text in `day`;
+- `none` renders nothing; the application owns the notice elsewhere;
+- activating the control dispatches `noticeactivate` with `{ day, notice, anchor }`, bubbling, without a default behavior and without selecting a slot;
+- the component never owns a tooltip, popover or floating engine; the application decides (modal, popover, drawer or nothing).
 
 ## U5 — Collapsed availability
 

@@ -19,11 +19,26 @@
     .phone h3 { margin-block: 0 1rem; font-size: 1rem; text-align: center; }
     .build-warning { display: none; border: 1px solid #b91c1c; border-radius: 0.5rem; padding: 1rem; margin-block-end: 2rem; }
     .build-warning code { font-family: ui-monospace, monospace; }
+    /* Basic demo popover: the component only emits noticeactivate; the page decides. */
+    .demo-popover {
+      position: fixed;
+      z-index: 10;
+      max-inline-size: 20rem;
+      padding: 0.75rem 1rem;
+      border: 1px solid #ddd;
+      border-radius: 0.5rem;
+      background: #fff;
+      box-shadow: 0 8px 24px rgb(0 0 0 / 0.15);
+    }
+    .demo-popover[hidden] { display: none; }
+    .demo-popover strong { display: block; margin-block-end: 0.25rem; }
+    .demo-popover p { margin: 0; color: #4b5563; }
   </style>
 </head>
 <body>
   <h1>Slot picker</h1>
   <p class="build-warning" id="build-warning">Le composant n'est pas chargé. Lancez <code>bun run build</code>, puis rechargez cette page.</p>
+  <p id="output" aria-live="polite"></p>
   <div class="row">
     <label for="theme">Thème columns</label>
     <select id="theme">
@@ -75,6 +90,15 @@
   </div>
   <div class="card">
     <h2>Aucun créneau mais une notice</h2>
+    <div class="row">
+      <label for="notice-display">notice-display</label>
+      <select id="notice-display">
+        <option value="action" selected>action</option>
+        <option value="inline">inline</option>
+        <option value="none">none</option>
+      </select>
+      <output id="notice-output"></output>
+    </div>
     <slot-picker id="picker-notice" start="2026-11-17" day-count="5"></slot-picker>
   </div>
   <div class="card">
@@ -93,7 +117,10 @@
     </div>
     <slot-picker id="picker-locale" start="2026-11-17" day-count="5" layout="day" min="2026-11-17" max="2026-12-15" home-date="2026-11-17"></slot-picker>
   </div>
-  <p id="output"></p>
+  <div id="notice-popover" class="demo-popover" role="dialog" hidden>
+    <strong id="notice-popover-title"></strong>
+    <p id="notice-popover-body"></p>
+  </div>
   <script src="../dist/slot-picker.js"></script>
   <script>
     if (!customElements.get("slot-picker")) {
@@ -193,6 +220,15 @@
     const noticePicker = document.querySelector("#picker-notice");
     noticePicker.messages = fr;
     noticePicker.days = noticeDays;
+    const noticeSelect = document.querySelector("#notice-display");
+    const noticeOutput = document.querySelector("#notice-output");
+    noticeSelect.addEventListener("change", () => {
+      noticePicker.noticeDisplay = noticeSelect.value;
+      noticeOutput.textContent = `notice-display="${noticePicker.noticeDisplay}"`;
+    });
+    noticePicker.addEventListener("noticeactivate", (event) => {
+      noticeOutput.textContent = `noticeactivate: ${event.detail.notice.label}`;
+    });
 
     const localePicker = document.querySelector("#picker-locale");
     const localeSelect = document.querySelector("#locale");
@@ -236,10 +272,63 @@
       picker.addEventListener("daychange", (event) => {
         output.textContent = `Active day: ${event.detail.activeDate}`;
       });
-      picker.addEventListener("noticeactivate", (event) => {
-        output.textContent = event.detail.notice.description;
-      });
     });
+
+    // Basic popover: the component only reports the intention and the anchor.
+    const popover = document.querySelector("#notice-popover");
+    const popoverTitle = document.querySelector("#notice-popover-title");
+    const popoverBody = document.querySelector("#notice-popover-body");
+    let popoverAnchor = null;
+
+    function positionPopover(anchor) {
+      const anchorRect = anchor.getBoundingClientRect();
+      const rect = popover.getBoundingClientRect();
+      const margin = 8;
+      let top = anchorRect.bottom + margin;
+      if (top + rect.height > window.innerHeight - margin) {
+        top = anchorRect.top - rect.height - margin;
+      }
+      let left = anchorRect.left + anchorRect.width / 2 - rect.width / 2;
+      left = Math.max(margin, Math.min(left, window.innerWidth - rect.width - margin));
+      popover.style.top = `${Math.max(margin, top)}px`;
+      popover.style.left = `${left}px`;
+    }
+
+    function closePopover() {
+      popover.hidden = true;
+      popoverAnchor = null;
+    }
+
+    document.body.addEventListener("noticeactivate", (event) => {
+      const { notice, anchor } = event.detail;
+      popoverAnchor = anchor;
+      popoverTitle.textContent = notice.label;
+      popoverBody.textContent = notice.description || "";
+      popoverBody.hidden = !notice.description;
+      popover.hidden = false;
+      positionPopover(anchor);
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closePopover();
+    });
+    document.addEventListener("click", (event) => {
+      if (popover.hidden) return;
+      const target = event.target;
+      if (popover.contains(target)) return;
+      if (popoverAnchor?.contains(target)) return;
+      closePopover();
+    });
+    window.addEventListener("resize", () => {
+      if (popoverAnchor) positionPopover(popoverAnchor);
+    });
+    window.addEventListener(
+      "scroll",
+      () => {
+        if (popoverAnchor) positionPopover(popoverAnchor);
+      },
+      true
+    );
 
     document.querySelector("#theme").addEventListener("change", (event) => {
       const theme = event.target.value;

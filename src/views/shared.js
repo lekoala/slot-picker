@@ -59,11 +59,32 @@ export function slotButton({ date, slot, dayIndex, slotIndex, selected, tabbed }
 }
 
 /**
- * Day notice indicator. Never a fake slot.
- * @param {{dayIndex:number,label:string,description?:string}} options
+ * Per-day notice indicator. Without options it is purely decorative. With
+ * `interactive: true` it is the only control that emits `noticeactivate`:
+ * the accessible name carries the description, the native `title` is a
+ * desktop-only bonus.
+ * @param {{interactive?:boolean,dayIndex?:number,label?:string,description?:string}} [options]
  */
-export function noticeButton({ dayIndex, label, description }) {
-  return `<button type="button" class="sp-notice" data-day-index="${dayIndex}" aria-label="${escapeAttr(description || label)}"><span class="sp-notice-dot" aria-hidden="true"></span><span class="sp-visually-hidden">${escapeHtml(label)}</span></button>`;
+export function noticeIndicator(options = {}) {
+  if (options.interactive) {
+    const accessible = options.description || options.label || "";
+    const title = options.label ? ` title="${escapeAttr(options.label)}"` : "";
+    return `<button type="button" class="sp-notice" data-day-index="${options.dayIndex ?? 0}" aria-label="${escapeAttr(accessible)}"${title}><span class="sp-notice-dot" aria-hidden="true"></span></button>`;
+  }
+  return '<span class="sp-notice" aria-hidden="true"><span class="sp-notice-dot"></span></span>';
+}
+
+/**
+ * Readable day notice. Deliberately non-interactive: `noticeactivate` belongs
+ * to the explicit control, never to displayed text, so there is no mouse-only
+ * activation.
+ * @param {{label:string,description?:string}} notice
+ */
+export function noticeBlock({ label, description }) {
+  const body = `<strong class="sp-day-notice-label">${escapeHtml(label)}</strong>${
+    description ? `<span class="sp-day-notice-description">${escapeHtml(description)}</span>` : ""
+  }`;
+  return `<div class="sp-day-notice">${body}</div>`;
 }
 
 /**

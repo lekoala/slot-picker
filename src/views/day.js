@@ -4,7 +4,8 @@ import {
   dayEmpty,
   escapeAttr,
   escapeHtml,
-  noticeButton,
+  noticeBlock,
+  noticeIndicator,
   rovingValue,
   slotButton,
   slotCountText,
@@ -19,9 +20,18 @@ const UTC_FORMAT = { timeZone: "UTC" };
  * Day projection: a strip of days plus the slots of the consulted day.
  * The strip uses aria-pressed (consulted day), never aria-current="date".
  * Today stays independently discoverable via data-today.
- * @param {{visible:SlotDay[],activeDate:string,today:string,value:string,focusedValue:string,messages:DayMessages,locale:string}} options
+ * @param {{visible:SlotDay[],activeDate:string,today:string,value:string,focusedValue:string,noticeDisplay:"inline"|"action"|"none",messages:DayMessages,locale:string}} options
  */
-export function renderDay({ visible, activeDate, today, value, focusedValue, messages, locale }) {
+export function renderDay({
+  visible,
+  activeDate,
+  today,
+  value,
+  focusedValue,
+  noticeDisplay,
+  messages,
+  locale,
+}) {
   const formatterStripDay = new Intl.DateTimeFormat(locale, { weekday: "short", ...UTC_FORMAT });
   const formatterStripDate = new Intl.DateTimeFormat(locale, {
     day: "numeric",
@@ -64,11 +74,17 @@ export function renderDay({ visible, activeDate, today, value, focusedValue, mes
   const firstEnabled = enabled[0] || "";
   const activeFocus = rovingValue(enabled, focusedValue, value, firstEnabled);
 
+  // `inline` reveals the full notice here (non-interactive text); `action`
+  // keeps the single control in the panel header; `none` renders nothing.
+  const inline = noticeDisplay === "inline";
+  const notice = active.notice && inline ? noticeBlock(active.notice) : "";
+  const headerNotice =
+    active.notice && noticeDisplay === "action"
+      ? noticeIndicator({ interactive: true, dayIndex: activeIndex, ...active.notice })
+      : "";
+
   let panelBody;
   if (active.slots.length === 0) {
-    const notice = active.notice
-      ? `<div class="sp-panel-notice"><strong class="sp-panel-notice-label">${escapeHtml(active.notice.label)}</strong>${active.notice.description ? `<p>${escapeHtml(active.notice.description)}</p>` : ""}</div>`
-      : "";
     panelBody = `${notice}${dayEmpty(messages.empty)}`;
   } else {
     const slots = active.slots
@@ -86,17 +102,14 @@ export function renderDay({ visible, activeDate, today, value, focusedValue, mes
         },
       )
       .join("");
-    panelBody = `<div class="sp-panel-slots">${slots}</div>`;
+    panelBody = `${notice}<div class="sp-panel-slots">${slots}</div>`;
   }
-
-  const panelNoticeDot =
-    active.slots.length > 0 && active.notice ? noticeButton({ dayIndex: activeIndex, ...active.notice }) : "";
 
   const html = `<div class="sp-daystrip" role="group" aria-label="${escapeAttr(messages.days)}">${strip}</div>
     <section class="sp-panel" data-date="${escapeAttr(active.date)}">
       <header class="sp-panel-header">
         <strong class="sp-panel-title">${escapeHtml(formatterPanelDay.format(toUtcDate(active.date)))}</strong>
-        ${panelNoticeDot}
+        ${headerNotice}
       </header>
       ${panelBody}
     </section>`;
