@@ -54,6 +54,29 @@
       </div>
     </div>
   </div>
+  <div class="card">
+    <h2>Navigation bornée / responsive</h2>
+    <p>
+      <code>day-count="7"</code> est une intention ; la capacité réelle
+      (<code>visibleDayCount</code>) dépend de <code>min</code>/<code>max</code> et de la largeur du composant.
+    </p>
+    <div id="responsive-host" class="phone" style="inline-size: 700px; max-inline-size: 100%">
+      <slot-picker id="picker-responsive" start="2026-11-17" day-count="7" responsive home-date="2026-11-17" next-availability min="2026-11-17" max="2026-12-15"></slot-picker>
+    </div>
+    <div class="row">
+      <button id="responsive-narrow" type="button">Réduire à 360px</button>
+      <button id="responsive-wide" type="button">Élargir à 700px</button>
+      <output id="responsive-output"></output>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Plage entièrement vide</h2>
+    <slot-picker id="picker-empty" start="2026-11-17" day-count="5" layout="day"></slot-picker>
+  </div>
+  <div class="card">
+    <h2>Aucun créneau mais une notice</h2>
+    <slot-picker id="picker-notice" start="2026-11-17" day-count="5"></slot-picker>
+  </div>
   <p id="output"></p>
   <script src="../dist/slot-picker.js"></script>
   <script>
@@ -64,11 +87,16 @@
     const fr = {
       previous: "Jours précédents",
       next: "Jours suivants",
+      home: "Retour au début",
+      nextAvailability: "Prochain créneau disponible",
       showMore: "Voir plus de disponibilités",
       showLess: "Voir moins",
       unavailable: "Indisponible",
       loading: "Chargement des disponibilités",
       empty: "Aucune disponibilité",
+      rangeEmptyTitle: "Aucun créneau disponible sur cette période",
+      rangeEmptyDescription: "Du {start} au {end}",
+      rangeEmptyNext: "Voir la période suivante",
       oneSlot: "1 créneau",
       manySlots: "{n} créneaux",
       days: "Jours"
@@ -89,6 +117,26 @@
       }
     ];
 
+    const emptyDays = ["2026-11-17", "2026-11-18", "2026-11-19", "2026-11-20", "2026-11-21"].map((date) => ({
+      date,
+      slots: []
+    }));
+
+    const noticeDays = [
+      { date: "2026-11-17", slots: [] },
+      {
+        date: "2026-11-18",
+        slots: [],
+        notice: {
+          label: "Indisponibilité exceptionnelle",
+          description: "Le praticien est exceptionnellement indisponible ce jour."
+        }
+      },
+      { date: "2026-11-19", slots: [] },
+      { date: "2026-11-20", slots: [] },
+      { date: "2026-11-21", slots: [] }
+    ];
+
     const pickers = [
       document.querySelector("#picker-columns"),
       document.querySelector("#picker-day"),
@@ -100,13 +148,43 @@
       picker.days = days;
     });
 
+    const responsivePicker = document.querySelector("#picker-responsive");
+    responsivePicker.messages = fr;
+    responsivePicker.days = days;
+
+    const responsiveHost = document.querySelector("#responsive-host");
+    const responsiveOutput = document.querySelector("#responsive-output");
+    const showResponsiveCount = () => {
+      responsiveOutput.textContent = `visibleDayCount = ${responsivePicker.visibleDayCount}`;
+    };
+    responsivePicker.addEventListener("rangechange", showResponsiveCount);
+    responsivePicker.addEventListener("nextrequest", (event) => {
+      responsiveOutput.textContent = `nextrequest after ${event.detail.after}`;
+    });
+    document.querySelector("#responsive-narrow").addEventListener("click", () => {
+      responsiveHost.style.inlineSize = "360px";
+      showResponsiveCount();
+    });
+    document.querySelector("#responsive-wide").addEventListener("click", () => {
+      responsiveHost.style.inlineSize = "700px";
+      showResponsiveCount();
+    });
+
+    const emptyPicker = document.querySelector("#picker-empty");
+    emptyPicker.messages = fr;
+    emptyPicker.days = emptyDays;
+
+    const noticePicker = document.querySelector("#picker-notice");
+    noticePicker.messages = fr;
+    noticePicker.days = noticeDays;
+
     const columnsPickers = [
       document.querySelector("#picker-columns"),
       document.querySelector("#picker-columns-narrow")
     ];
 
     const output = document.querySelector("#output");
-    pickers.forEach((picker) => {
+    [...pickers, responsivePicker, emptyPicker, noticePicker].forEach((picker) => {
       picker.addEventListener("slotactivate", (event) => {
         output.textContent = `Selected: ${event.detail.value}`;
       });

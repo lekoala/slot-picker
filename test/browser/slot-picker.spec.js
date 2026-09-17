@@ -100,3 +100,369 @@ test("demo works without a web server", async ({ page }) => {
   await expect(page.locator("#picker-columns .sp-slot").first()).toBeVisible();
   await expect(page.locator("#picker-day .sp-strip-day")).toHaveCount(5);
 });
+
+const FIVE_DAYS = [
+  { date: "2026-11-17", slots: [{ start: "09:00" }] },
+  { date: "2026-11-18", slots: [{ start: "09:00" }] },
+  { date: "2026-11-19", slots: [{ start: "09:00" }] },
+  { date: "2026-11-20", slots: [{ start: "09:00" }] },
+  { date: "2026-11-21", slots: [{ start: "09:00" }] },
+];
+
+test("min/max bound the window and disable impossible navigation", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async (days) => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "5");
+    picker.setAttribute("min", "2026-11-17");
+    picker.setAttribute("max", "2026-11-21");
+    picker.days = days;
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+    const range = picker.range;
+    const nextDisabled = picker.querySelector(".sp-nav-next").disabled;
+    const prevDisabled = picker.querySelector(".sp-nav-prev").disabled;
+    picker.next();
+    await new Promise(requestAnimationFrame);
+    return {
+      range,
+      nextDisabled,
+      prevDisabled,
+      afterNext: picker.range,
+      rendered: picker.querySelectorAll(".sp-day").length,
+    };
+  }, FIVE_DAYS);
+
+  expect(result.range).toEqual({ start: "2026-11-17", end: "2026-11-21", dayCount: 5 });
+  expect(result.nextDisabled).toBe(true);
+  expect(result.prevDisabled).toBe(true);
+  expect(result.afterNext.start).toBe("2026-11-17");
+  expect(result.rendered).toBe(5);
+});
+
+test("a shorter bounded interval reduces visibleDayCount instead of leaving the bounds", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async (days) => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "5");
+    picker.setAttribute("min", "2026-11-17");
+    picker.setAttribute("max", "2026-11-19");
+    picker.days = days;
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+    return {
+      count: picker.visibleDayCount,
+      range: picker.range,
+      rendered: picker.querySelectorAll(".sp-day").length,
+    };
+  }, FIVE_DAYS);
+
+  expect(result.count).toBe(3);
+  expect(result.range).toEqual({ start: "2026-11-17", end: "2026-11-19", dayCount: 3 });
+  expect(result.rendered).toBe(3);
+});
+
+test("responsive resize changes the range but preserves activeDate", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async (days) => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "5");
+    picker.setAttribute("responsive", "");
+    picker.days = days;
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    const wide = { count: picker.visibleDayCount, range: picker.range };
+    picker.activeDate = "2026-11-20";
+    await new Promise(requestAnimationFrame);
+
+    const value = picker.value;
+    host.style.width = "360px";
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    return { wide, count: picker.visibleDayCount, range: picker.range, activeDate: picker.activeDate, value };
+  }, FIVE_DAYS);
+
+  expect(result.wide.count).toBe(5);
+  expect(result.count).toBe(3);
+  expect(result.range).toEqual({ start: "2026-11-18", end: "2026-11-20", dayCount: 3 });
+  expect(result.activeDate).toBe("2026-11-20");
+  expect(result.value).toBe("");
+});
+
+test("an empty range replaces the projection and next() advances the window", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "3");
+    picker.setAttribute("layout", "day");
+    picker.messages = { rangeEmptyNext: "See the next period" };
+    picker.days = [
+      { date: "2026-11-17", slots: [] },
+      { date: "2026-11-18", slots: [] },
+      { date: "2026-11-19", slots: [] },
+    ];
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    const empty = Boolean(picker.querySelector(".sp-range-empty"));
+    const projections = picker.querySelectorAll(".sp-grid, .sp-panel, .sp-daystrip").length;
+    picker.querySelector(".sp-range-empty-next").click();
+    await new Promise(requestAnimationFrame);
+    return { empty, projections, start: picker.start };
+  });
+
+  expect(result.empty).toBe(true);
+  expect(result.projections).toBe(0);
+  expect(result.start).toBe("2026-11-20");
+});
+
+test("a notice without slots keeps the projection and the range empty state stays out", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "3");
+    picker.days = [
+      { date: "2026-11-17", slots: [] },
+      {
+        date: "2026-11-18",
+        slots: [],
+        notice: { label: "Exceptionally unavailable" },
+      },
+      { date: "2026-11-19", slots: [] },
+    ];
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+    return {
+      rangeEmpty: Boolean(picker.querySelector(".sp-range-empty")),
+      days: picker.querySelectorAll(".sp-day").length,
+      notices: picker.querySelectorAll(".sp-notice").length,
+    };
+  });
+
+  expect(result.rangeEmpty).toBe(false);
+  expect(result.days).toBe(3);
+  expect(result.notices).toBe(1);
+});
+
+test("goTo, goHome and configure drive the window without selecting", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async (days) => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    host.append(picker);
+    document.body.append(host);
+    picker.configure({
+      start: "2026-11-17",
+      dayCount: 5,
+      min: "2026-11-17",
+      max: "2026-12-15",
+      homeDate: "2026-11-17",
+    });
+    picker.days = days;
+    await new Promise(requestAnimationFrame);
+
+    picker.goTo("2026-11-25");
+    await new Promise(requestAnimationFrame);
+    const moved = { range: picker.range, activeDate: picker.activeDate, value: picker.value };
+
+    picker.goHome();
+    await new Promise(requestAnimationFrame);
+    return { moved, home: picker.range, homeActive: picker.activeDate };
+  }, FIVE_DAYS);
+
+  expect(result.moved.range.start).toBe("2026-11-21");
+  expect(result.moved.range.end).toBe("2026-11-25");
+  expect(result.moved.activeDate).toBe("2026-11-25");
+  expect(result.moved.value).toBe("");
+  expect(result.home).toEqual({ start: "2026-11-17", end: "2026-11-21", dayCount: 5 });
+});
+
+test("goTo emits rangechange before daychange", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const events = await page.evaluate(async (days) => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "5");
+    picker.setAttribute("min", "2026-11-17");
+    picker.setAttribute("max", "2026-12-15");
+    picker.days = days;
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    const order = [];
+    picker.addEventListener("rangechange", () => order.push("rangechange"));
+    picker.addEventListener("daychange", () => order.push("daychange"));
+    picker.goTo("2026-11-25");
+    return order;
+  }, FIVE_DAYS);
+
+  expect(events).toEqual(["rangechange", "daychange"]);
+});
+
+test("configure applies as one transaction", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const events = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "5");
+    picker.source = () => [];
+    host.append(picker);
+    document.body.append(host);
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    const seen = [];
+    picker.addEventListener("rangechange", () => seen.push("rangechange"));
+    picker.addEventListener("loadstart", () => seen.push("loadstart"));
+    picker.configure({
+      start: "2026-11-10",
+      dayCount: 3,
+      min: "2026-11-10",
+      max: "2026-12-15",
+    });
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    return seen;
+  });
+
+  expect(events.filter((event) => event === "rangechange")).toHaveLength(1);
+  expect(events.filter((event) => event === "loadstart")).toHaveLength(1);
+});
+
+test("goToNextAvailability uses the source next() when available", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async (days) => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "5");
+    picker.setAttribute("min", "2026-11-17");
+    picker.setAttribute("max", "2026-12-15");
+    picker.days = days;
+    picker.source = {
+      load: () => ({ days }),
+      next: ({ after }) => (after === "2026-11-21" ? "2026-12-08" : null),
+    };
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    const after = picker.range.end;
+    const date = await picker.goToNextAvailability();
+    await new Promise(requestAnimationFrame);
+    return { date, after, activeDate: picker.activeDate, range: picker.range };
+  }, FIVE_DAYS);
+
+  expect(result.after).toBe("2026-11-21");
+  expect(result.date).toBe("2026-12-08");
+  expect(result.activeDate).toBe("2026-12-08");
+  expect(result.range.start <= result.date && result.date <= result.range.end).toBe(true);
+});
+
+test("goToNextAvailability falls back to nextrequest and lets the consumer goTo", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async (days) => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "5");
+    picker.setAttribute("min", "2026-11-17");
+    picker.setAttribute("max", "2026-12-15");
+    picker.days = days;
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    let requested = "";
+    picker.addEventListener("nextrequest", (event) => {
+      requested = event.detail.after;
+      picker.goTo("2026-12-08");
+    });
+    const date = await picker.goToNextAvailability();
+    await new Promise(requestAnimationFrame);
+    return { date, requested, activeDate: picker.activeDate };
+  }, FIVE_DAYS);
+
+  expect(result.requested).toBe("2026-11-21");
+  expect(result.date).toBe(null);
+  expect(result.activeDate).toBe("2026-12-08");
+});
+
+test("min > max is a distinguishable invalid range that never touches the source", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "5");
+    picker.setAttribute("min", "2026-12-01");
+    picker.setAttribute("max", "2026-11-01");
+    host.append(picker);
+    document.body.append(host);
+
+    let loads = 0;
+    let nexts = 0;
+    let requests = 0;
+    picker.addEventListener("nextrequest", () => requests++);
+    picker.source = {
+      load: () => {
+        loads++;
+        return [];
+      },
+      next: () => {
+        nexts++;
+        return "2026-12-08";
+      },
+    };
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const date = await picker.goToNextAvailability();
+    return {
+      count: picker.visibleDayCount,
+      range: picker.range,
+      invalid: picker.hasAttribute("data-invalid-range"),
+      loads,
+      nexts,
+      requests,
+      date,
+      prevDisabled: picker.querySelector(".sp-nav-prev").disabled,
+    };
+  });
+
+  expect(result.count).toBe(0);
+  expect(result.range).toEqual({ start: "", end: "", dayCount: 0 });
+  expect(result.invalid).toBe(true);
+  expect(result.loads).toBe(0);
+  expect(result.nexts).toBe(0);
+  expect(result.requests).toBe(0);
+  expect(result.date).toBe(null);
+  expect(result.prevDisabled).toBe(true);
+});

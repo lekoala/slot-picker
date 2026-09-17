@@ -32,6 +32,15 @@ export function compareDates(a, b) {
 }
 
 /**
+ * Signed civil day difference (b - a).
+ * @param {string} a
+ * @param {string} b
+ */
+export function daysBetween(a, b) {
+  return Math.round((toUtcDate(b).getTime() - toUtcDate(a).getTime()) / 86_400_000);
+}
+
+/**
  * Inclusive visible civil range.
  * @param {string} start
  * @param {number} dayCount

@@ -43,6 +43,12 @@
   min-inline-size: 0;
 }
 
+.sp-nav-group {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-gap);
+}
+
 .sp-grid {
   display: grid;
   grid-template-columns: repeat(var(--_sp-day-count, 5), minmax(0, 1fr));
@@ -217,6 +223,44 @@ html[dir="rtl"] .sp-nav svg {
   color: var(--sp-muted);
   font-size: 0.9rem;
   text-align: center;
+}
+
+.sp-range-empty {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  padding: 1.5rem 1rem;
+  border-radius: var(--sp-radius);
+  background: var(--sp-card-bg);
+  text-align: center;
+}
+
+.sp-range-empty-title {
+  font-size: 1rem;
+}
+
+.sp-range-empty-description {
+  margin: 0;
+  color: var(--sp-muted);
+}
+
+.sp-range-empty-next {
+  border: 0;
+  border-radius: var(--sp-radius);
+  padding: 0.6rem 1rem;
+  background: var(--sp-accent);
+  color: var(--sp-accent-fg);
+  font: inherit;
+  cursor: pointer;
+}
+
+.sp-range-empty-next:hover {
+  background: color-mix(in srgb, var(--sp-accent) 85%, var(--sp-bg));
+}
+
+.sp-range-empty-next:focus-visible {
+  outline: 2px solid var(--sp-focus);
+  outline-offset: 2px;
 }
 
 .sp-daystrip {

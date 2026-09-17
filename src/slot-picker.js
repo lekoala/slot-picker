@@ -1,27 +1,56 @@
 import { addDays, compareDates, isDateValue, rangeEnd, todayValue } from "./date.js";
 import { resolveMessages } from "./messages.js";
 import {
+  boundedDayCount,
   clampStart,
   collapsedDays,
+  ensureVisible,
+  hasDayContent,
+  isValidRange,
   moveFocus,
+  normalizeBreakpoints,
   normalizeDays,
+  RESPONSIVE_BREAKPOINTS,
   rangeDetail,
   resolveActiveDate,
+  resolveVisibleDayCount,
   slotValue,
   visibleDays,
 } from "./model.js";
 import { SlotSourceController } from "./source.js";
 import { renderColumns } from "./views/columns.js";
 import { renderDay } from "./views/day.js";
-import { escapeAttr, escapeHtml } from "./views/shared.js";
+import { escapeAttr, escapeHtml, rangeEmpty } from "./views/shared.js";
 
 const PREV_ICON =
   '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4 6.5 10l6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const NEXT_ICON =
   '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7.5 4 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const HOME_ICON =
+  '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10.5 4 5.5 10l5 6M16 4l-5 6 5 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const AVAILABILITY_ICON =
+  '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m9.5 4 5 6-5 6M4 4l5 6-5 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+/** Attributes that change the resolved visible range. */
+const RANGE_ATTRIBUTES = new Set(["start", "min", "max", "day-count", "responsive"]);
 
 /** @typedef {import("./model.js").SlotDay} SlotDay */
 /** @typedef {"up"|"down"|"left"|"right"|"home"|"end"} FocusDirection */
+/** @typedef {{minWidth:number,dayCount:number}} ResponsiveBreakpoint */
+/**
+ * @typedef {Partial<{
+ *   min: string,
+ *   max: string,
+ *   start: string,
+ *   dayCount: number,
+ *   layout: "columns"|"day",
+ *   value: string,
+ *   maxVisibleRows: number,
+ *   responsive: boolean,
+ *   homeDate: string|null,
+ *   responsiveBreakpoints: ResponsiveBreakpoint[]|null,
+ * }>} ConfigureOptions
+ */
 
 /**
  * Inline appointment slot chooser.
@@ -32,10 +61,20 @@ const NEXT_ICON =
  * - value: YYYY-MM-DDTHH:mm
  *
  * State:
- * - start/dayCount: visible civil range
- * - activeDate: last day explicitly targeted (day click or slot activation)
+ * - dayCount: consumer's maximum intention
+ * - visibleDayCount: capacity actually resolved from bounds + width
+ * - start/range: visible civil range
+ * - activeDate: consulted day
  * - focusedValue: keyboard target, never a selection
  * - value: selected local slot value
+ * - homeDate: reference date for `goHome()`, unrelated to `min`
+ *
+ * Invariants:
+ * - resize changes the range, never `value`;
+ * - navigation changes the range, never `value`;
+ * - day activation changes `activeDate`, never `value`;
+ * - slot activation changes `activeDate` and `value`;
+ * - event order is stable: `rangechange` then `daychange`, then any reload.
  */
 export class SlotPickerElement extends HTMLElement {
   static observedAttributes = [
@@ -48,6 +87,9 @@ export class SlotPickerElement extends HTMLElement {
     "layout",
     "max-visible-rows",
     "expanded",
+    "responsive",
+    "home-date",
+    "next-availability",
   ];
 
   /** @type {SlotDay[]} */
@@ -60,7 +102,18 @@ export class SlotPickerElement extends HTMLElement {
   #focusedValue = "";
   #renderQueued = false;
   #initializing = false;
+  #batching = false;
   #pendingFocus = "";
+  /** @type {ResizeObserver|null} */
+  #resizeObserver = null;
+  /** @type {number|null} */
+  #measuredWidth = null;
+  /** @type {ResponsiveBreakpoint[]|null} */
+  #breakpoints = null;
+  /** @type {{start:string,end:string,dayCount:number}|null} */
+  #lastRange = null;
+  /** @type {string|null} */
+  #lastActiveDate = null;
 
   constructor() {
     super();
@@ -74,12 +127,19 @@ export class SlotPickerElement extends HTMLElement {
     if (!this.hasAttribute("day-count")) this.setAttribute("day-count", "5");
     if (!this.hasAttribute("layout")) this.setAttribute("layout", "columns");
     this.#initializing = false;
-    this.#queueRender();
-    this.#load();
+
+    this.#measuredWidth = this.getBoundingClientRect().width;
+    if (!this.#resizeObserver && typeof ResizeObserver !== "undefined") {
+      this.#resizeObserver = new ResizeObserver((entries) => this.#onResize(entries));
+    }
+    this.#resizeObserver?.observe(this);
+
+    this.#reconcile({ pinActive: false });
   }
 
   disconnectedCallback() {
     this.#sourceController.abort();
+    this.#resizeObserver?.disconnect();
   }
 
   /**
@@ -89,9 +149,9 @@ export class SlotPickerElement extends HTMLElement {
    */
   attributeChangedCallback(name, oldValue, newValue) {
     if (oldValue === newValue) return;
-    this.#queueRender();
-    if (this.#initializing) return;
-    if (this.isConnected && ["start", "day-count", "min", "max"].includes(name)) this.#load();
+    if (this.#initializing || this.#batching) return;
+    if (RANGE_ATTRIBUTES.has(name)) this.#reconcile({ pinActive: name !== "start" });
+    else this.#queueRender();
   }
 
   get start() {
@@ -101,8 +161,8 @@ export class SlotPickerElement extends HTMLElement {
 
   set start(value) {
     if (!isDateValue(value)) throw new TypeError("start must be YYYY-MM-DD");
-    const next = clampStart(value, this.min, this.max, this.dayCount);
-    this.setAttribute("start", next);
+    const count = this.visibleDayCount;
+    this.setAttribute("start", count > 0 ? clampStart(value, this.min, this.max, count) : value);
   }
 
   get dayCount() {
@@ -110,9 +170,41 @@ export class SlotPickerElement extends HTMLElement {
     return Number.isFinite(value) ? Math.max(1, Math.min(14, value)) : 5;
   }
 
+  /** @param {number} value */
   set dayCount(value) {
     const next = Math.max(1, Math.min(14, Number(value) || 5));
     this.setAttribute("day-count", String(next));
+  }
+
+  /**
+   * Consumer's maximum intention.
+   * @see visibleDayCount for the resolved value.
+   */
+  get visibleDayCount() {
+    if (!isValidRange(this.min, this.max)) return 0;
+    const bounded = boundedDayCount(this.dayCount, this.min, this.max);
+    if (!this.responsive || this.#measuredWidth === null) return bounded;
+    return resolveVisibleDayCount(bounded, this.#measuredWidth, this.#breakpoints ?? RESPONSIVE_BREAKPOINTS);
+  }
+
+  get responsive() {
+    return this.hasAttribute("responsive");
+  }
+
+  set responsive(value) {
+    this.toggleAttribute("responsive", Boolean(value));
+  }
+
+  /** @returns {readonly ResponsiveBreakpoint[]} */
+  get responsiveBreakpoints() {
+    return this.#breakpoints ?? RESPONSIVE_BREAKPOINTS;
+  }
+
+  /** @param {ResponsiveBreakpoint[]|null} value */
+  set responsiveBreakpoints(value) {
+    this.#breakpoints = value?.length ? normalizeBreakpoints(value) : null;
+    if (!this.isConnected || this.#batching) return;
+    this.#reconcile({ pinActive: true });
   }
 
   get min() {
@@ -151,15 +243,30 @@ export class SlotPickerElement extends HTMLElement {
   }
 
   get activeDate() {
+    const count = this.visibleDayCount;
+    if (!count) return "";
     const raw = this.getAttribute("active-date") || "";
     const base = isDateValue(raw) ? raw : this.start;
-    return resolveActiveDate(this.start, this.dayCount, base);
+    return resolveActiveDate(this.start, count, base);
   }
 
   set activeDate(value) {
     if (!value) this.removeAttribute("active-date");
     else if (isDateValue(value)) this.setAttribute("active-date", value);
     else throw new TypeError("active-date must be YYYY-MM-DD or empty");
+  }
+
+  /** Reference date used by `goHome()`. Never confused with `min`. */
+  get homeDate() {
+    const raw = this.getAttribute("home-date") || "";
+    if (isDateValue(raw)) return raw;
+    return this.min || todayValue();
+  }
+
+  set homeDate(value) {
+    if (!value) this.removeAttribute("home-date");
+    else if (isDateValue(value)) this.setAttribute("home-date", value);
+    else throw new TypeError("home-date must be YYYY-MM-DD or empty");
   }
 
   get layout() {
@@ -217,16 +324,81 @@ export class SlotPickerElement extends HTMLElement {
     this.#queueRender();
   }
 
+  /** Resolved visible civil range. Empty and invalid when count is 0. */
   get range() {
-    return rangeDetail(this.start, this.dayCount);
+    const count = this.visibleDayCount;
+    if (!count) return { start: "", end: "", dayCount: 0 };
+    return rangeDetail(this.start, count);
   }
 
   previous() {
-    this.#navigate(-this.dayCount);
+    this.#navigate(-this.visibleDayCount);
   }
 
   next() {
-    this.#navigate(this.dayCount);
+    this.#navigate(this.visibleDayCount);
+  }
+
+  /**
+   * Bring `date` into the visible range and consult it.
+   * Event order: `rangechange` then `daychange`.
+   * @param {string} date
+   * @returns {string} the resolved active date, or "" when the range is invalid
+   */
+  goTo(date) {
+    const count = this.visibleDayCount;
+    if (!count) return "";
+    const target = isDateValue(date) ? this.#clampToBounds(date) : this.start;
+    this.#mutate(() => this.#moveTo(target, count));
+    this.#commit();
+    return this.activeDate;
+  }
+
+  /** Return to the reference window. Distinct from `min` and from `previous()`. */
+  goHome() {
+    return this.goTo(this.homeDate);
+  }
+
+  /**
+   * Ask the source (or, failing that, the `nextrequest` event) for the next
+   * known availability beyond the visible range. Never merged with `next()`.
+   * @param {{after?:string}} [options]
+   * @returns {Promise<string|null>}
+   */
+  async goToNextAvailability(options = {}) {
+    if (!this.visibleDayCount) return null;
+    const after = options.after ?? this.range.end;
+    if (this.#sourceController.hasNext) {
+      const date = await this.#sourceController.next({ after });
+      if (date && isDateValue(date)) {
+        this.goTo(date);
+        return date;
+      }
+      return null;
+    }
+    this.dispatchEvent(new CustomEvent("nextrequest", { detail: { after } }));
+    return null;
+  }
+
+  /**
+   * Apply several settings as one transaction: no intermediate load or event.
+   * @param {ConfigureOptions} [options]
+   */
+  configure(options = {}) {
+    this.#mutate(() => {
+      if (options.min !== undefined) this.min = options.min;
+      if (options.max !== undefined) this.max = options.max;
+      if (options.start !== undefined) this.start = options.start;
+      if (options.dayCount !== undefined) this.dayCount = options.dayCount;
+      if (options.layout !== undefined) this.layout = options.layout;
+      if (options.value !== undefined) this.value = options.value;
+      if (options.maxVisibleRows !== undefined) this.maxVisibleRows = options.maxVisibleRows;
+      if (options.responsive !== undefined) this.responsive = options.responsive;
+      if (options.homeDate !== undefined) this.homeDate = options.homeDate ?? "";
+      if (options.responsiveBreakpoints !== undefined)
+        this.responsiveBreakpoints = options.responsiveBreakpoints;
+    });
+    this.#reconcile({ pinActive: true });
   }
 
   async reload() {
@@ -235,24 +407,136 @@ export class SlotPickerElement extends HTMLElement {
 
   /** @param {number} delta */
   #navigate(delta) {
-    const before = this.activeDate;
-    const requested = addDays(this.start, delta);
-    const next = clampStart(requested, this.min, this.max, this.dayCount);
+    const count = this.visibleDayCount;
+    if (!count) return;
+    const next = clampStart(addDays(this.start, delta), this.min, this.max, count);
     if (next === this.start) return;
-    this.start = next;
-    this.dispatchEvent(new CustomEvent("rangechange", { detail: this.range }));
-    const after = this.activeDate;
-    if (after !== before) {
-      this.dispatchEvent(new CustomEvent("daychange", { detail: { activeDate: after } }));
+    this.#mutate(() => this.setAttribute("start", next));
+    this.#commit();
+  }
+
+  /**
+   * Move the window just enough to make `target` visible.
+   * @param {string} target
+   * @param {number} count
+   */
+  #moveTo(target, count) {
+    const nextStart = ensureVisible(this.start, count, target, this.min, this.max);
+    if (nextStart !== this.getAttribute("start")) this.setAttribute("start", nextStart);
+    const nextActive = resolveActiveDate(nextStart, count, target);
+    if (this.getAttribute("active-date") !== nextActive) this.setAttribute("active-date", nextActive);
+  }
+
+  /** @param {string} date */
+  #clampToBounds(date) {
+    let next = date;
+    if (this.min && compareDates(next, this.min) < 0) next = this.min;
+    if (this.max && compareDates(next, this.max) > 0) next = this.max;
+    return next;
+  }
+
+  /**
+   * @param {() => void} fn
+   */
+  #mutate(fn) {
+    const wasBatching = this.#batching;
+    this.#batching = true;
+    try {
+      fn();
+    } finally {
+      this.#batching = wasBatching;
     }
+  }
+
+  /**
+   * Single reconciliation pass: normalize -> resolve count -> clamp/ensure
+   * visible -> commit (render + load + events).
+   * @param {{pinActive?:boolean,reload?:boolean}} [options]
+   */
+  #reconcile(options = {}) {
+    const pinActive = options.pinActive ?? true;
+    const reload = options.reload ?? true;
+    const wasBatching = this.#batching;
+    this.#batching = true;
+    try {
+      const count = this.visibleDayCount;
+      const invalid = count === 0;
+      this.toggleAttribute("data-invalid-range", invalid);
+      if (!invalid) {
+        const rawActive = this.getAttribute("active-date") || "";
+        const previous = this.#lastRange;
+        // Resolve the anchor against the *previous* range so a shrink cannot
+        // clamp the consulted day to the new, shorter end before we move start.
+        let anchor = this.start;
+        if (pinActive) {
+          if (previous?.dayCount && isDateValue(rawActive)) {
+            anchor = resolveActiveDate(previous.start, previous.dayCount, rawActive);
+          } else if (isDateValue(rawActive)) {
+            anchor = rawActive;
+          } else if (previous?.start) {
+            anchor = previous.start;
+          }
+        }
+        const nextStart = ensureVisible(this.start, count, anchor, this.min, this.max);
+        if (nextStart !== this.getAttribute("start")) this.setAttribute("start", nextStart);
+        if (pinActive && isDateValue(anchor)) {
+          const nextActive = resolveActiveDate(nextStart, count, anchor);
+          if (this.getAttribute("active-date") !== nextActive) this.setAttribute("active-date", nextActive);
+        }
+      }
+    } finally {
+      this.#batching = wasBatching;
+    }
+    if (wasBatching) return;
+    this.#commit({ reload });
+  }
+
+  /**
+   * Publish state: render, then `rangechange`, `daychange`, then reload.
+   * @param {{reload?:boolean}} [options]
+   */
+  #commit(options = {}) {
+    const reload = options.reload ?? true;
+    const range = this.range;
+    const count = this.visibleDayCount;
+    const active = count ? this.activeDate : "";
+    const previousRange = this.#lastRange;
+    const first = previousRange === null;
+    const rangeChanged =
+      first ||
+      range.start !== previousRange.start ||
+      range.end !== previousRange.end ||
+      range.dayCount !== previousRange.dayCount;
+    const activeChanged = !first && this.#lastActiveDate !== null && active !== this.#lastActiveDate;
+    this.#lastRange = range;
+    this.#lastActiveDate = active;
+    this.#queueRender();
+    if (!first && rangeChanged) this.dispatchEvent(new CustomEvent("rangechange", { detail: range }));
+    if (!first && activeChanged) {
+      this.dispatchEvent(new CustomEvent("daychange", { detail: { activeDate: active } }));
+    }
+    if (reload && rangeChanged && count > 0) this.#load();
+  }
+
+  /** @param {ResizeObserverEntry[]} entries */
+  #onResize(entries) {
+    const entry = entries[entries.length - 1];
+    const box = entry?.contentBoxSize?.[0];
+    const width = box ? box.inlineSize : (entry?.contentRect.width ?? 0);
+    const previous = this.visibleDayCount;
+    this.#measuredWidth = width;
+    if (this.visibleDayCount !== previous) this.#reconcile({ pinActive: true });
   }
 
   /** @param {string} date @param {boolean} emit */
   #setActiveDate(date, emit = true) {
-    const resolved = resolveActiveDate(this.start, this.dayCount, date);
+    const count = this.visibleDayCount;
+    if (!count) return;
+    const resolved = resolveActiveDate(this.start, count, date);
     const before = this.activeDate;
     if (resolved === before && this.getAttribute("active-date") === resolved) return;
     this.setAttribute("active-date", resolved);
+    this.#lastActiveDate = resolved;
     if (emit && resolved !== before) {
       this.dispatchEvent(new CustomEvent("daychange", { detail: { activeDate: resolved } }));
     }
@@ -260,6 +544,7 @@ export class SlotPickerElement extends HTMLElement {
 
   async #load() {
     if (!this.source) return;
+    if (!this.visibleDayCount) return;
     const range = this.range;
     this.#loading = true;
     this.#error = null;
@@ -307,6 +592,9 @@ export class SlotPickerElement extends HTMLElement {
     }
     if (element.classList.contains("sp-nav-prev")) return ".sp-nav-prev";
     if (element.classList.contains("sp-nav-next")) return ".sp-nav-next";
+    if (element.classList.contains("sp-nav-home")) return ".sp-nav-home";
+    if (element.classList.contains("sp-nav-availability")) return ".sp-nav-availability";
+    if (element.classList.contains("sp-range-empty-next")) return ".sp-range-empty-next";
     if (element.classList.contains("sp-more-button")) return ".sp-more-button";
     if (element.classList.contains("sp-notice")) {
       const index = element.getAttribute("data-day-index") || "";
@@ -322,14 +610,29 @@ export class SlotPickerElement extends HTMLElement {
     const pendingSelector = this.#pendingFocus;
     this.#pendingFocus = "";
 
-    const days = visibleDays(this.#days, this.start, this.dayCount);
+    const count = this.visibleDayCount;
+    const invalid = count === 0;
+    const days = count ? visibleDays(this.#days, this.start, count) : [];
     const locale = this.lang || document.documentElement.lang || "en";
-    const canPrevious = !this.min || compareDates(this.start, this.min) > 0;
-    const canNext = !this.max || compareDates(rangeEnd(this.start, this.dayCount), this.max) < 0;
+    const canPrevious = !invalid && (!this.min || compareDates(this.start, this.min) > 0);
+    const canNext = !invalid && (!this.max || compareDates(rangeEnd(this.start, count), this.max) < 0);
+
+    // A range is "empty" only when it has no meaningful day content at all.
+    // A notice without slots keeps the projection so the exception stays visible.
+    const empty = !this.#loading && !this.#error && !hasDayContent(days);
 
     let content;
     let hasOverflow = false;
-    if (this.layout === "day") {
+    if (empty) {
+      content = rangeEmpty({
+        start: this.range.start,
+        end: this.range.end,
+        invalid,
+        canNext,
+        locale,
+        messages: this.#messages,
+      });
+    } else if (this.layout === "day") {
       content = renderDay({
         visible: days,
         activeDate: this.activeDate,
@@ -359,9 +662,19 @@ export class SlotPickerElement extends HTMLElement {
         ? `<div class="sp-status sp-status-error" role="status">${escapeHtml(String(this.#error))}</div>`
         : "";
 
-    this.style.setProperty("--_sp-day-count", String(this.dayCount));
+    const homeButton = this.hasAttribute("home-date")
+      ? `<button type="button" class="sp-nav sp-nav-home" aria-label="${escapeAttr(this.#messages.home)}"${invalid ? " disabled" : ""}>${HOME_ICON}</button>`
+      : "";
+    const availabilityButton = this.hasAttribute("next-availability")
+      ? `<button type="button" class="sp-nav sp-nav-availability" aria-label="${escapeAttr(this.#messages.nextAvailability)}"${invalid ? " disabled" : ""}>${AVAILABILITY_ICON}</button>`
+      : "";
+
+    this.style.setProperty("--_sp-day-count", String(Math.max(1, count)));
     this.innerHTML = `<div class="sp-shell" data-layout="${this.layout}">
-      <button type="button" class="sp-nav sp-nav-prev" aria-label="${escapeAttr(this.#messages.previous)}"${canPrevious ? "" : " disabled"}>${PREV_ICON}</button>
+      <div class="sp-nav-group">
+        ${homeButton}
+        <button type="button" class="sp-nav sp-nav-prev" aria-label="${escapeAttr(this.#messages.previous)}"${canPrevious ? "" : " disabled"}>${PREV_ICON}</button>
+      </div>
       <div class="sp-content">
         ${status}
         ${content}
@@ -371,7 +684,10 @@ export class SlotPickerElement extends HTMLElement {
             : ""
         }
       </div>
-      <button type="button" class="sp-nav sp-nav-next" aria-label="${escapeAttr(this.#messages.next)}"${canNext ? "" : " disabled"}>${NEXT_ICON}</button>
+      <div class="sp-nav-group">
+        <button type="button" class="sp-nav sp-nav-next" aria-label="${escapeAttr(this.#messages.next)}"${canNext ? "" : " disabled"}>${NEXT_ICON}</button>
+        ${availabilityButton}
+      </div>
     </div>`;
 
     const selector = pendingSelector || fallbackSelector;
@@ -388,6 +704,12 @@ export class SlotPickerElement extends HTMLElement {
 
     if (target.closest(".sp-nav-prev")) return this.previous();
     if (target.closest(".sp-nav-next")) return this.next();
+    if (target.closest(".sp-nav-home")) return this.goHome();
+    if (target.closest(".sp-nav-availability")) {
+      void this.goToNextAvailability();
+      return;
+    }
+    if (target.closest(".sp-range-empty-next")) return this.next();
 
     const more = target.closest(".sp-more-button");
     if (more) {
@@ -408,7 +730,7 @@ export class SlotPickerElement extends HTMLElement {
     const notice = target.closest(".sp-notice");
     if (notice instanceof HTMLElement) {
       const dayIndex = Number(notice.getAttribute("data-day-index"));
-      const day = visibleDays(this.#days, this.start, this.dayCount)[dayIndex];
+      const day = visibleDays(this.#days, this.start, this.visibleDayCount)[dayIndex];
       if (day?.notice)
         this.dispatchEvent(new CustomEvent("noticeactivate", { detail: { day, notice: day.notice } }));
       return;
@@ -438,7 +760,7 @@ export class SlotPickerElement extends HTMLElement {
     if (!direction) return;
     event.preventDefault();
 
-    const allDays = visibleDays(this.#days, this.start, this.dayCount);
+    const allDays = visibleDays(this.#days, this.start, this.visibleDayCount);
     if (this.layout === "day") {
       this.#onPanelKeyDown(event, allDays, direction);
       return;
@@ -470,7 +792,7 @@ export class SlotPickerElement extends HTMLElement {
     if (action === undefined) return;
     event.preventDefault();
 
-    const days = visibleDays(this.#days, this.start, this.dayCount);
+    const days = visibleDays(this.#days, this.start, this.visibleDayCount);
     const currentIndex = Math.max(
       0,
       days.findIndex((day) => day.date === this.activeDate),
@@ -541,7 +863,7 @@ export class SlotPickerElement extends HTMLElement {
     if (button.disabled) return;
     const dayIndex = Number(button.dataset.dayIndex);
     const slotIndex = Number(button.dataset.slotIndex);
-    const day = visibleDays(this.#days, this.start, this.dayCount)[dayIndex];
+    const day = visibleDays(this.#days, this.start, this.visibleDayCount)[dayIndex];
     const slot = day?.slots[slotIndex];
     if (!day || !slot || slot.disabled) return;
 

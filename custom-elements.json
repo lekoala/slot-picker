@@ -20,13 +20,17 @@
             { "name": "active-date", "type": { "text": "string" } },
             { "name": "layout", "type": { "text": "string" } },
             { "name": "max-visible-rows", "type": { "text": "number" } },
-            { "name": "expanded", "type": { "text": "boolean" } }
+            { "name": "expanded", "type": { "text": "boolean" } },
+            { "name": "responsive", "type": { "text": "boolean" } },
+            { "name": "home-date", "type": { "text": "string" } },
+            { "name": "next-availability", "type": { "text": "boolean" } }
           ],
           "events": [
             { "name": "rangechange" },
             { "name": "daychange" },
             { "name": "slotactivate" },
             { "name": "noticeactivate" },
+            { "name": "nextrequest" },
             { "name": "loadstart" },
             { "name": "loadend" },
             { "name": "loaderror" }

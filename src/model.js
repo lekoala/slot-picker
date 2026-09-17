@@ -1,6 +1,19 @@
-import { addDays, compareDates, isDateValue, rangeEnd } from "./date.js";
+import { addDays, compareDates, daysBetween, isDateValue, rangeEnd } from "./date.js";
 
 const TIME_RE = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+
+/**
+ * Default width-to-capacity ladder for `responsive` projection.
+ * Resolved against the component's own inline size, never the viewport.
+ * @type {readonly {minWidth:number,dayCount:number}[]}
+ */
+export const RESPONSIVE_BREAKPOINTS = Object.freeze([
+  Object.freeze({ minWidth: 640, dayCount: 5 }),
+  Object.freeze({ minWidth: 480, dayCount: 4 }),
+  Object.freeze({ minWidth: 360, dayCount: 3 }),
+  Object.freeze({ minWidth: 256, dayCount: 2 }),
+  Object.freeze({ minWidth: 0, dayCount: 1 }),
+]);
 
 /** @typedef {{start:string,end?:string,disabled?:boolean,description?:string,meta?:unknown}} Slot */
 /** @typedef {{label:string,description?:string,meta?:unknown}} DayNotice */
@@ -83,6 +96,63 @@ export function collapsedDays(days, maxVisibleRows, expanded) {
 }
 
 /**
+ * True when `min`/`max` describe a consistent bound. Both empty is valid
+ * (unbounded); `min > max` is an explicit invalid configuration.
+ * @param {string} min
+ * @param {string} max
+ */
+export function isValidRange(min, max) {
+  return !min || !max || compareDates(min, max) <= 0;
+}
+
+/**
+ * Reduce a requested day count to the days actually available inside the
+ * bounds. Step 2 of the pipeline: requested count -> bounded count.
+ * Invalid bounds (`min > max`) resolve to 0, never a magic window.
+ * @param {number} dayCount
+ * @param {string} min
+ * @param {string} max
+ */
+export function boundedDayCount(dayCount, min, max) {
+  const requested = Math.max(1, Number(dayCount) || 1);
+  if (!min || !max) return requested;
+  if (compareDates(min, max) > 0) return 0;
+  return Math.min(requested, daysBetween(min, max) + 1);
+}
+
+/**
+ * Normalize an override ladder: descending widths, sane counts.
+ * @param {{minWidth?:number,dayCount?:number}[]} breakpoints
+ * @returns {{minWidth:number,dayCount:number}[]}
+ */
+export function normalizeBreakpoints(breakpoints) {
+  return breakpoints
+    .map((breakpoint) => ({
+      minWidth: Math.max(0, Number(breakpoint?.minWidth) || 0),
+      dayCount: Math.max(1, Math.min(14, Number(breakpoint?.dayCount) || 1)),
+    }))
+    .sort((a, b) => b.minWidth - a.minWidth);
+}
+
+/**
+ * Step 3 of the pipeline: adapt the bounded count to the component's own
+ * inline size. Never exceeds the bounded count, never exceeds a breakpoint.
+ * @param {number} dayCount
+ * @param {number} width
+ * @param {readonly {minWidth:number,dayCount:number}[]} [breakpoints]
+ */
+export function resolveVisibleDayCount(dayCount, width, breakpoints = RESPONSIVE_BREAKPOINTS) {
+  const requested = Math.max(0, Number(dayCount) || 0);
+  if (requested === 0) return 0;
+  const ladder = breakpoints.length ? breakpoints : RESPONSIVE_BREAKPOINTS;
+  const size = Number.isFinite(width) ? width : 0;
+  const match = ladder.find((breakpoint) => size >= breakpoint.minWidth) ?? ladder[ladder.length - 1];
+  return Math.min(requested, match.dayCount);
+}
+
+/**
+ * Keep a window inside its bounds without shrinking it below the requested
+ * count unless the interval itself is shorter.
  * @param {string} start
  * @param {string} min
  * @param {string} max
@@ -91,11 +161,51 @@ export function collapsedDays(days, maxVisibleRows, expanded) {
 export function clampStart(start, min, max, dayCount) {
   let next = start;
   if (min && compareDates(next, min) < 0) next = min;
+  const count = Math.max(1, dayCount);
   if (max) {
-    const latest = addDays(max, -(Math.max(1, dayCount) - 1));
-    if (compareDates(next, latest) > 0) next = latest;
+    const latest = addDays(max, -(count - 1));
+    if (compareDates(latest, min || next) < 0) next = min || latest;
+    else if (compareDates(next, latest) > 0) next = latest;
   }
   return next;
+}
+
+/**
+ * Stable range adjustment: keep `start` when `date` is already visible,
+ * otherwise shift just enough to bring `date` back into the window.
+ * Shared by resize, `goTo`, and min/max/day-count changes.
+ * @param {string} start
+ * @param {number} dayCount
+ * @param {string} date
+ * @param {string} min
+ * @param {string} max
+ */
+export function ensureVisible(start, dayCount, date, min, max) {
+  const count = Math.max(1, dayCount);
+  const bounded = clampStart(start, min, max, count);
+  if (!isDateValue(date)) return bounded;
+  const end = rangeEnd(bounded, count);
+  if (compareDates(date, bounded) >= 0 && compareDates(date, end) <= 0) return bounded;
+  const candidate = compareDates(date, bounded) < 0 ? date : addDays(date, -(count - 1));
+  return clampStart(candidate, min, max, count);
+}
+
+/**
+ * Any appointment slot in the visible window.
+ * @param {SlotDay[]} days
+ */
+export function hasSlots(days) {
+  return days.some((day) => Array.isArray(day.slots) && day.slots.length > 0);
+}
+
+/**
+ * Any meaningful day content: a slot or a notice. A window with no slot but
+ * a notice must keep its projection, so a medical exception stays visible
+ * and is not collapsed into "no availability".
+ * @param {SlotDay[]} days
+ */
+export function hasDayContent(days) {
+  return days.some((day) => (Array.isArray(day.slots) && day.slots.length > 0) || Boolean(day.notice));
 }
 
 /**

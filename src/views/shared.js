@@ -1,7 +1,9 @@
+import { toUtcDate } from "../date.js";
 import { slotValue } from "../model.js";
 
 /** @typedef {import("../model.js").Slot} Slot */
 /** @typedef {{oneSlot:string,manySlots:string}} SlotCountMessages */
+/** @typedef {{rangeEmptyTitle:string,rangeEmptyDescription:string,rangeEmptyNext:string}} RangeEmptyMessages */
 
 /** @type {Record<string,string>} */
 const ENTITIES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
@@ -82,4 +84,35 @@ export function slotCountText(count, messages) {
   if (count <= 0) return "–";
   if (count === 1) return messages.oneSlot;
   return messages.manySlots.replace("{n}", String(count));
+}
+
+/**
+ * Range-level empty state, distinct from per-day empty days.
+ * Rendered only when the whole window has no slot and no notice; the theme
+ * decides how prominent it is. The action stays `next()` (next window), never
+ * "next availability" (which may skip several windows through the source).
+ * @param {{start:string,end:string,invalid:boolean,canNext:boolean,locale:string,messages:RangeEmptyMessages}} options
+ */
+export function rangeEmpty({ start, end, invalid, canNext, locale, messages }) {
+  const showDescription = !invalid && Boolean(start);
+  let description = "";
+  if (showDescription) {
+    const formatter = new Intl.DateTimeFormat(locale, {
+      day: "numeric",
+      month: "short",
+      timeZone: "UTC",
+    });
+    const text = messages.rangeEmptyDescription
+      .replace("{start}", formatter.format(toUtcDate(start)))
+      .replace("{end}", formatter.format(toUtcDate(end)));
+    description = `<p class="sp-range-empty-description">${escapeHtml(text)}</p>`;
+  }
+  const action = canNext
+    ? `<button type="button" class="sp-range-empty-next">${escapeHtml(messages.rangeEmptyNext)}</button>`
+    : "";
+  return `<div class="sp-range-empty">
+    <strong class="sp-range-empty-title">${escapeHtml(messages.rangeEmptyTitle)}</strong>
+    ${description}
+    ${action}
+  </div>`;
 }

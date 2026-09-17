@@ -1,9 +1,18 @@
 import { describe, expect, test } from "bun:test";
 import {
+  boundedDayCount,
+  clampStart,
   collapsedDays,
+  ensureVisible,
+  hasDayContent,
+  hasSlots,
+  isValidRange,
   moveFocus,
+  normalizeBreakpoints,
   normalizeDays,
+  RESPONSIVE_BREAKPOINTS,
   resolveActiveDate,
+  resolveVisibleDayCount,
   slotValue,
   visibleDays,
 } from "../../src/model.js";
@@ -80,5 +89,82 @@ describe("slot model", () => {
       slotIndex: 1,
     });
     expect(moveFocus(all, { dayIndex: 0, slotIndex: 1 }, "down")).toEqual({ dayIndex: 0, slotIndex: 2 });
+  });
+});
+
+describe("bounded and responsive navigation", () => {
+  test("isValidRange rejects min > max only", () => {
+    expect(isValidRange("", "")).toBe(true);
+    expect(isValidRange("2026-11-17", "2026-11-21")).toBe(true);
+    expect(isValidRange("2026-11-21", "2026-11-17")).toBe(false);
+  });
+
+  test("boundedDayCount shrinks to the available interval", () => {
+    expect(boundedDayCount(5, "2026-11-17", "2026-11-19")).toBe(3);
+    expect(boundedDayCount(5, "2026-11-17", "2026-11-21")).toBe(5);
+    expect(boundedDayCount(5, "", "")).toBe(5);
+  });
+
+  test("boundedDayCount is 0 for invalid bounds", () => {
+    expect(boundedDayCount(5, "2026-11-21", "2026-11-17")).toBe(0);
+  });
+
+  test("resolveVisibleDayCount follows the ladder and caps at the request", () => {
+    expect(resolveVisibleDayCount(7, 700)).toBe(5);
+    expect(resolveVisibleDayCount(7, 500)).toBe(4);
+    expect(resolveVisibleDayCount(7, 380)).toBe(3);
+    expect(resolveVisibleDayCount(7, 280)).toBe(2);
+    expect(resolveVisibleDayCount(7, 100)).toBe(1);
+    expect(resolveVisibleDayCount(2, 700)).toBe(2);
+    expect(resolveVisibleDayCount(0, 700)).toBe(0);
+    expect(RESPONSIVE_BREAKPOINTS[0].minWidth).toBe(640);
+  });
+
+  test("normalizeBreakpoints sorts descending and clamps counts", () => {
+    const ladder = normalizeBreakpoints([
+      { minWidth: 0, dayCount: 3 },
+      { minWidth: 700, dayCount: 40 },
+    ]);
+    expect(ladder.map((entry) => entry.minWidth)).toEqual([700, 0]);
+    expect(ladder[0].dayCount).toBe(14);
+    expect(resolveVisibleDayCount(7, 900, ladder)).toBe(7);
+    expect(resolveVisibleDayCount(7, 100, ladder)).toBe(3);
+  });
+
+  test("clampStart never leaves the bounds", () => {
+    expect(clampStart("2026-11-01", "2026-11-17", "2026-11-21", 5)).toBe("2026-11-17");
+    expect(clampStart("2026-12-01", "2026-11-17", "2026-11-21", 5)).toBe("2026-11-17");
+    // Window wider than the interval: pin to min, never below it.
+    expect(clampStart("2026-11-19", "2026-11-17", "2026-11-19", 5)).toBe("2026-11-17");
+  });
+
+  test("ensureVisible keeps start when the date is visible", () => {
+    expect(ensureVisible("2026-11-17", 5, "2026-11-20", "", "")).toBe("2026-11-17");
+  });
+
+  test("ensureVisible shifts just enough to preserve activeDate on shrink", () => {
+    // 17..21 with active = 20, shrinking to 3 days must yield 18..20.
+    expect(ensureVisible("2026-11-17", 3, "2026-11-20", "", "")).toBe("2026-11-18");
+    // Active at start: no shift.
+    expect(ensureVisible("2026-11-17", 3, "2026-11-17", "", "")).toBe("2026-11-17");
+  });
+
+  test("ensureVisible respects bounds when aligning", () => {
+    expect(ensureVisible("2026-11-21", 2, "2026-11-21", "2026-11-17", "2026-11-21")).toBe("2026-11-20");
+    expect(ensureVisible("2026-11-17", 5, "2026-11-17", "2026-11-17", "2026-11-19")).toBe("2026-11-17");
+  });
+
+  test("hasSlots and hasDayContent differ on notice-only days", () => {
+    const empty = normalizeDays([{ date: "2026-11-17", slots: [] }]);
+    const notice = normalizeDays([
+      { date: "2026-11-17", slots: [], notice: { label: "Exceptionally unavailable" } },
+    ]);
+    const bookable = normalizeDays([{ date: "2026-11-17", slots: [{ start: "09:00" }] }]);
+
+    expect(hasSlots(empty)).toBe(false);
+    expect(hasDayContent(empty)).toBe(false);
+    expect(hasSlots(notice)).toBe(false);
+    expect(hasDayContent(notice)).toBe(true);
+    expect(hasSlots(bookable)).toBe(true);
   });
 });

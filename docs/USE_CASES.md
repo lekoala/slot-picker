@@ -114,6 +114,28 @@ Acceptance:
 - keyboard offers two comprehensible tab stops (day strip, then day slots) with roving tabindex in each zone;
 - Left/Right/Home/End on the strip change `activeDate` without selecting a slot.
 
+## U10 — Bounded and responsive navigation
+
+A consumer can bound the visible range, adapt the number of days to the
+component's own width, and navigate by window, by reference date, or to the
+next known availability. A wholly empty window is a distinct state.
+
+Acceptance:
+
+- `min`/`max` are hard bounds: `min <= start` and `end <= max`;
+- when the requested `dayCount` does not fit the bounds, the resolved `visibleDayCount` shrinks instead of showing out-of-bounds days;
+- `min > max` is an explicit invalid configuration: `range` is `{ start: "", end: "", dayCount: 0 }`, `data-invalid-range` is set, navigation is disabled, and the source is never called;
+- `dayCount` is the consumer's maximum intention; `visibleDayCount` is the capacity resolved from bounds and the component's own inline width;
+- responsive resolution is opt-in via `responsive`, uses `ResizeObserver`, and never reads `window.innerWidth`; `responsiveBreakpoints` is overridable;
+- changing `visibleDayCount` keeps `activeDate` visible by shifting `start` just enough, within the bounds;
+- `previous()`/`next()` move to the adjacent window of `visibleDayCount` days and never select;
+- `goTo(date)` brings `date` into the window and consults it, respecting the bounds;
+- `goHome()` returns to `homeDate`, a reference date that is never confused with `min`;
+- `goToNextAvailability()` asks the source (`source.next`) or falls back to a `nextrequest` event; it may skip several windows and is never merged with `next()`;
+- a window with no slot and no notice renders a range empty state (`.sp-range-empty` replacing the projection, with a `next()` action);
+- a window with a notice but no slots keeps the normal projection so the exception stays visible;
+- resize changes the range, never `value`; event order is stable (`rangechange`, then `daychange`, then any reload).
+
 ## Not a use case for this package
 
 Keep these outside the component:
