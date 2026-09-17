@@ -4,6 +4,7 @@
   --sp-muted: color-mix(in srgb, var(--sp-fg) 58%, var(--sp-bg));
   --sp-border: color-mix(in srgb, var(--sp-fg) 16%, var(--sp-bg));
   --sp-hover: color-mix(in srgb, var(--sp-fg) 5%, var(--sp-bg));
+  --sp-notice-hover-bg: color-mix(in srgb, var(--sp-fg) 12%, var(--sp-bg));
   --sp-accent: #2563eb;
   --sp-accent-fg: #ffffff;
   --sp-accent-soft: color-mix(in srgb, var(--sp-accent) 16%, var(--sp-bg));
@@ -93,10 +94,14 @@
   background: transparent;
   color: var(--sp-muted);
   cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
 }
 
 .sp-notice:hover {
-  background: var(--sp-hover);
+  background: var(--sp-notice-hover-bg);
+  color: var(--sp-fg);
 }
 
 .sp-notice-dot {
@@ -316,6 +321,7 @@ html[dir="rtl"] .sp-nav svg {
 }
 
 .sp-panel-header {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;

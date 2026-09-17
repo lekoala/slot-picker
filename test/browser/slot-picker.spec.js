@@ -540,3 +540,59 @@ test("setDefaultMessages reaches an already-created instance", async ({ page }) 
   expect(labels.before).toBe("Next days");
   expect(labels.after).toBe("Suivant");
 });
+
+test("hovering a day notice raises a visible affordance", async ({ page }) => {
+  await page.goto("/demo/index.html");
+
+  const notice = page.locator("#picker-columns .sp-notice").first();
+  await notice.scrollIntoViewIfNeeded();
+  const before = await notice.evaluate((element) => getComputedStyle(element).backgroundColor);
+
+  await notice.hover();
+  await page.waitForTimeout(200);
+  const after = await notice.evaluate((element) => getComputedStyle(element).backgroundColor);
+
+  expect(after).not.toBe(before);
+  expect(after).not.toBe("rgba(0, 0, 0, 0)");
+});
+
+test("day projection anchors a notice dot inside the panel header", async ({ page }) => {
+  await page.goto("/demo/index.html");
+
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "3");
+    picker.setAttribute("layout", "day");
+    picker.setAttribute("active-date", "2026-11-18");
+    picker.days = [
+      { date: "2026-11-17", slots: [{ start: "09:00" }] },
+      {
+        date: "2026-11-18",
+        slots: [{ start: "09:00" }],
+        notice: { label: "Exceptionally unavailable", description: "The practitioner is away." },
+      },
+      { date: "2026-11-19", slots: [{ start: "09:00" }] },
+    ];
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    const notice = picker.querySelector(".sp-panel-header .sp-notice");
+    const header = picker.querySelector(".sp-panel-header");
+    if (!(notice instanceof HTMLElement) || !(header instanceof HTMLElement)) return { found: false };
+    const n = notice.getBoundingClientRect();
+    const h = header.getBoundingClientRect();
+    return {
+      found: true,
+      anchored: Math.abs(n.top - h.top) <= 1 && Math.abs(n.right - h.right) <= 1,
+      insidePicker: n.left >= picker.getBoundingClientRect().left,
+    };
+  });
+
+  expect(result.found).toBe(true);
+  expect(result.anchored).toBe(true);
+  expect(result.insidePicker).toBe(true);
+});
