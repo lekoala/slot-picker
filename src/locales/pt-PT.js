@@ -8,6 +8,7 @@ export default {
   loading: "A carregar disponibilidade",
   empty: "Sem disponibilidade",
   closed: "Fechado",
+  closedRange: "Fechado neste período",
   rangeEmptyTitle: "Sem disponibilidade neste período",
   rangeEmptyDescription: "De {start} a {end}",
   rangeEmptyNext: "Ver o período seguinte",

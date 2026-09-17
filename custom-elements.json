@@ -29,6 +29,11 @@
               "type": { "text": "\"inline\" | \"action\" | \"none\"" },
               "default": "action"
             },
+            {
+              "name": "closed-days",
+              "type": { "text": "\"show\" | \"hide\"" },
+              "default": "show"
+            },
             { "name": "locale", "type": { "text": "string" } }
           ],
           "events": [

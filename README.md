@@ -265,9 +265,31 @@ slot-picker .sp-day[data-closed] {
 ```
 
 `notice` remains reserved for exceptional information and may coexist with
-`closed`. To jump between windows by real availability, let the source expose
-`next()` and call `goToNextAvailability()`; the civil shape of a window never
-changes.
+`closed`. A closed day carrying slots is invalid input and is rejected by
+normalization.
+
+`closed-days="hide"` drops closed days from the projection without changing the
+civil range:
+
+```html
+<slot-picker closed-days="hide" start="2026-11-21" day-count="5"></slot-picker>
+```
+
+```js
+picker.range; // still { start: "2026-11-21", end: "2026-11-25", dayCount: 5 }
+```
+
+Hiding a closed day does not extend the civil range to compensate for the
+hidden column: `day-count="5"` with two closed days renders three columns.
+`range`, `visibleDayCount`, `previous()`/`next()`, `goTo()` and `source.load()`
+stay civil, and toggling `closed-days` never reloads the source. In
+`layout="day"`, a closed day that is the consulted `activeDate` stays visible
+until another day is activated, so data arrival never moves `activeDate`. A
+window that is closed in its entirety renders the range empty state with
+`messages.closedRange`.
+
+To jump between windows by real availability, let the source expose `next()`
+and call `goToNextAvailability()`; the civil shape of a window never changes.
 
 ## Per-slot presentation
 

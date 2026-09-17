@@ -157,10 +157,20 @@
   <div class="card">
     <h2>Closed days</h2>
     <p>
-      <code>closed: true</code> is a normal day state set by the source: the day stays in the civil
-      window and is styled through <code>[data-closed]</code>, distinct from an open day with no availability.
+      Bounded range that starts today: the source closes weekends and today's weekday, and opens the
+      other days with a few slots. <code>closed: true</code> is a normal day state — the day stays in
+      the civil window and is styled through <code>[data-closed]</code>, distinct from an open day with
+      no availability. Use the arrows to navigate between closed and open windows.
     </p>
-    <slot-picker id="picker-closed" start="2026-11-21" day-count="3"></slot-picker>
+    <div class="row">
+      <label for="closed-days">closed-days</label>
+      <select id="closed-days">
+        <option value="show" selected>show</option>
+        <option value="hide">hide</option>
+      </select>
+      <output id="closed-output"></output>
+    </div>
+    <slot-picker id="picker-closed" day-count="5"></slot-picker>
   </div>
   <div class="card">
     <h2>Messages / locale</h2>
@@ -300,13 +310,60 @@
     const emptyPicker = document.querySelector("#picker-empty");
     emptyPicker.days = emptyDays;
 
-    const closedDays = [
-      { date: "2026-11-21", slots: [], closed: true },
-      { date: "2026-11-22", slots: [], closed: true },
-      { date: "2026-11-23", slots: [{ start: "09:00" }, { start: "11:30" }] }
-    ];
+    // Bounded, live closed-days scenario: starts today, weekends and today's
+    // weekday are closed, other days are open with a few slots.
     const closedPicker = document.querySelector("#picker-closed");
+    const civilToday = () => {
+      const now = new Date();
+      return [
+        now.getFullYear(),
+        String(now.getMonth() + 1).padStart(2, "0"),
+        String(now.getDate()).padStart(2, "0")
+      ].join("-");
+    };
+    const shiftDate = (date, amount) => {
+      const [year, month, day] = date.split("-").map(Number);
+      const next = new Date(Date.UTC(year, month - 1, day + amount));
+      return [
+        next.getUTCFullYear(),
+        String(next.getUTCMonth() + 1).padStart(2, "0"),
+        String(next.getUTCDate()).padStart(2, "0")
+      ].join("-");
+    };
+    const weekdayOf = (date) => {
+      const [year, month, day] = date.split("-").map(Number);
+      return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+    };
+    const startDate = civilToday();
+    const closedWeekday = weekdayOf(startDate);
+    const closedDays = Array.from({ length: 42 }, (_, index) => {
+      const date = shiftDate(startDate, index);
+      const weekday = weekdayOf(date);
+      if (weekday === 0 || weekday === 6 || weekday === closedWeekday) {
+        return { date, slots: [], closed: true };
+      }
+      return {
+        date,
+        slots: [{ start: "09:00" }, { start: "10:30" }, { start: "14:00" }, { start: "16:30" }]
+      };
+    });
+    closedPicker.min = startDate;
+    closedPicker.max = shiftDate(startDate, 41);
+    closedPicker.start = startDate;
     closedPicker.days = closedDays;
+
+    const closedSelect = document.querySelector("#closed-days");
+    const closedOutput = document.querySelector("#closed-output");
+    const showClosedState = () => {
+      const columns = closedPicker.querySelectorAll(".sp-day").length;
+      closedOutput.textContent = `range ${closedPicker.range.dayCount} days · ${columns} columns`;
+    };
+    closedSelect.addEventListener("change", () => {
+      closedPicker.closedDays = closedSelect.value;
+      requestAnimationFrame(showClosedState);
+    });
+    closedPicker.addEventListener("rangechange", () => requestAnimationFrame(showClosedState));
+    requestAnimationFrame(showClosedState);
 
     const noticePicker = document.querySelector("#picker-notice");
     noticePicker.days = noticeDays;

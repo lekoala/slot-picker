@@ -58,6 +58,11 @@ describe("slot model", () => {
     expect(() => normalizeDays([{ date: "2026-11-22", slots: [], closed: "yes" }])).toThrow(
       /Invalid day closed/,
     );
+    // A closed day promises no bookable slot: a contradictory payload is data,
+    // not something the projection policy silently hides.
+    expect(() => normalizeDays([{ date: "2026-11-22", slots: [{ start: "09:00" }], closed: true }])).toThrow(
+      /Closed day cannot have slots/,
+    );
   });
 
   test("fills empty visible days", () => {

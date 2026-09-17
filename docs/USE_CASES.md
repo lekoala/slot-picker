@@ -172,6 +172,12 @@ Acceptance:
 - `notice` stays reserved for exceptional information and may coexist with `closed`;
 - a window whose only content is closed days keeps the normal projection instead of collapsing into the range empty state;
 - `source.next()` / `goToNextAvailability()` let the application jump to the next real availability between windows; they never change the civil shape of a window;
+- `closed-days="show"` (default) renders every civil day; `closed-days="hide"` removes closed days from the projection only;
+- hiding a closed day never extends the civil range to compensate: `day-count` stays the civil count, and the rendered column count follows the projected days;
+- hiding never alters `range`, `visibleDayCount`, `previous()`/`next()`, `goTo()` or `source.load()`, and toggling `closed-days` never reloads the source;
+- in `layout="day"`, a closed day that is the consulted `activeDate` stays visible until another day is activated; data arrival never moves `activeDate`;
+- a window whose civil days are all closed renders the range empty state with `messages.closedRange`, distinct from `messages.empty`;
+- `closed: true` with bookable slots is invalid input and is rejected by normalization;
 - no recurrence or opening-hours rule enters the core.
 
 ## Not a use case for this package

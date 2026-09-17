@@ -90,6 +90,11 @@ export function normalizeDays(input) {
       if (day.closed !== undefined && typeof day.closed !== "boolean") {
         throw new TypeError(`Invalid day closed on ${day.date}`);
       }
+      // `closed: true` promises no bookable slot: a contradictory payload is a
+      // source bug, never silently hidden by the projection policy.
+      if (day.closed === true && normalizedSlots.length > 0) {
+        throw new TypeError(`Closed day cannot have slots: ${day.date}`);
+      }
 
       return {
         date: day.date,

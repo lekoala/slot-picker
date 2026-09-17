@@ -8,6 +8,7 @@ export default {
   loading: "Beschikbaarheid laden",
   empty: "Geen beschikbaarheid",
   closed: "Gesloten",
+  closedRange: "Gesloten in deze periode",
   rangeEmptyTitle: "Geen beschikbaarheid in deze periode",
   rangeEmptyDescription: "Van {start} tot {end}",
   rangeEmptyNext: "Volgende periode bekijken",
