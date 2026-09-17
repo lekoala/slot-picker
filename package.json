@@ -1,0 +1,80 @@
+{
+  "name": "@lekoala/slot-picker",
+  "version": "0.1.0",
+  "description": "Native-first day and appointment slot picker primitive",
+  "type": "module",
+  "sideEffects": [
+    "./src/define.js",
+    "./src/slot-picker.css",
+    "./dist/slot-picker.js",
+    "./dist/slot-picker.min.js",
+    "./dist/slot-picker.css",
+    "./dist/slot-picker.min.css"
+  ],
+  "license": "MIT",
+  "customElements": "custom-elements.json",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lekoala/slot-picker.git"
+  },
+  "homepage": "https://github.com/lekoala/slot-picker",
+  "bugs": "https://github.com/lekoala/slot-picker/issues",
+  "packageManager": "bun@1.4.2",
+  "keywords": [
+    "slot-picker",
+    "appointment",
+    "availability",
+    "web-component",
+    "accessibility"
+  ],
+  "files": [
+    "dist",
+    "src",
+    "docs",
+    "custom-elements.json",
+    "LICENSE",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./src/index.js"
+    },
+    "./define": {
+      "types": "./dist/types/define.d.ts",
+      "import": "./src/define.js"
+    },
+    "./slot-picker.css": "./src/slot-picker.css",
+    "./dist/slot-picker.js": "./dist/slot-picker.js",
+    "./dist/slot-picker.min.js": "./dist/slot-picker.min.js",
+    "./dist/slot-picker.css": "./dist/slot-picker.css",
+    "./dist/slot-picker.min.css": "./dist/slot-picker.min.css"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "dev": "node test/server.js",
+    "build:bundle": "bun scripts/build.js",
+    "build:types": "bun run types",
+    "build": "bun run build:bundle && bun run build:types",
+    "sync": "bun run build",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "typecheck": "tsc -p jsconfig.json",
+    "types": "tsc -p tsconfig.types.json",
+    "test": "bun test test/unit",
+    "test:syntax": "node --check src/date.js && node --check src/model.js && node --check src/source.js && node --check src/messages.js && node --check src/slot-picker.js && node --check src/index.js && node --check src/define.js",
+    "test:browser": "playwright test browser --project chromium",
+    "test:browser:all": "playwright test browser",
+    "check": "bun run test:syntax && bun run lint && bun run typecheck && bun run test",
+    "verify": "bun run check && bun run sync",
+    "prepack": "bun run sync",
+    "prepublishOnly": "bun run verify"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.13",
+    "@playwright/test": "1.63.0",
+    "typescript": "7.0.2"
+  }
+}

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Slot picker demo</title>
+  <link rel="stylesheet" href="../src/slot-picker.css">
+  <style>
+    body { max-width: 64rem; margin: 3rem auto; padding: 0 1rem; font-family: system-ui, sans-serif; }
+    .card { border: 1px solid #ddd; border-radius: 0.75rem; padding: 1.5rem; }
+  </style>
+</head>
+<body>
+  <h1>Slot picker</h1>
+  <div class="card">
+    <slot-picker id="picker" start="2026-11-17" day-count="5" max-visible-rows="5"></slot-picker>
+  </div>
+  <p id="output"></p>
+  <script type="module">
+    import "../src/define.js";
+    import fr from "../src/locales/fr.js";
+
+    const picker = document.querySelector("#picker");
+    picker.messages = fr;
+    picker.days = [
+      { date: "2026-11-17", slots: [{ start: "13:35" }, { start: "19:00" }, { start: "21:00" }] },
+      { date: "2026-11-18", slots: [{ start: "08:00" }, { start: "08:35" }, { start: "09:00" }, { start: "10:10" }, { start: "11:40" }, { start: "12:00" }, { start: "14:30" }, { start: "15:20" }, { start: "19:00" }, { start: "21:30" }] },
+      { date: "2026-11-19", slots: [{ start: "09:15" }, { start: "11:35" }, { start: "12:20" }, { start: "14:10" }, { start: "18:00" }, { start: "19:00" }] },
+      { date: "2026-11-20", slots: [{ start: "12:00" }, { start: "15:30" }, { start: "16:45" }, { start: "19:00" }, { start: "20:20" }, { start: "21:00" }, { start: "21:40" }] },
+      {
+        date: "2026-11-21",
+        slots: [],
+        notice: {
+          label: "Indisponibilité exceptionnelle",
+          description: "Le praticien est exceptionnellement indisponible ce jour. Merci de votre compréhension."
+        }
+      }
+    ];
+
+    picker.addEventListener("slotactivate", (event) => {
+      document.querySelector("#output").textContent = `Selected: ${event.detail.value}`;
+    });
+
+    picker.addEventListener("noticeactivate", (event) => {
+      document.querySelector("#output").textContent = event.detail.notice.description;
+    });
+  </script>
+</body>
+</html>
