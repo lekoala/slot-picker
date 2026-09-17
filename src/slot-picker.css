@@ -35,11 +35,17 @@
     var(--sp-gap)
   );
   --sp-footer-block-size: 2.5rem;
+  /* Reserved height for the `home` shortcut when `home-date` is configured. */
+  --sp-shortcuts-block-size: 2.5rem;
   --sp-collapsed-block-size: calc(
     var(--sp-day-header-block-size) +
     var(--sp-collapsed-body-block-size) +
     var(--sp-footer-block-size)
   );
+  /* Collapsed "show more" floats in the reserved footer band; the gradient
+     rises above that band to hint at availability that is not rendered. */
+  --sp-more-fade-size: 4rem;
+  --sp-more-bg: var(--sp-bg);
   --sp-panel-min-block-size: calc(2 * var(--sp-slot-block-size) + var(--sp-gap));
   --sp-loading-fade-opacity: 0.72;
   --sp-loading-fade-delay: 400ms;
@@ -75,6 +81,7 @@
 }
 
 .sp-content {
+  position: relative;
   min-inline-size: 0;
   opacity: 1;
   transition-property: opacity;
@@ -111,6 +118,12 @@ slot-picker:not([layout="day"]) .sp-content {
   margin-block-start: var(--sp-gap);
 }
 
+/* Keep the wrapper present (empty when `homeDate` is visible) so the shortcut
+   appearing never shifts the content below. */
+slot-picker[home-date] .sp-shortcuts {
+  min-block-size: var(--sp-shortcuts-block-size, 2.5rem);
+}
+
 .sp-home {
   display: inline-flex;
   align-items: center;
@@ -142,6 +155,10 @@ slot-picker:not([layout="day"]) .sp-content {
   display: grid;
   justify-items: center;
   gap: 0.1rem;
+  /* Deterministic leading: an inherited `normal` line-height can exceed the
+     reserved header height and break the stable footprint. */
+  line-height: 1.25;
+  box-sizing: border-box;
   min-block-size: var(--sp-day-header-block-size);
   padding-block: 0.15rem 0.55rem;
   text-align: center;
@@ -284,7 +301,41 @@ html[dir="rtl"] .sp-nav svg {
   margin-block-start: 1rem;
 }
 
+/* Collapsed: float the control inside the reserved footer band while the
+   gradient rises above it to suggest the availability that is not rendered.
+   The last rendered row stays fully interactive. */
+slot-picker:not([expanded]) .sp-more {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  display: grid;
+  place-items: end center;
+  margin-block-start: 0;
+  min-block-size: var(--sp-footer-block-size);
+}
+
+slot-picker:not([expanded]) .sp-more::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  block-size: var(--sp-more-fade-size, 4rem);
+  background: linear-gradient(to bottom, transparent, var(--sp-more-bg, var(--sp-bg)));
+  pointer-events: none;
+}
+
+/* Expanded: back to normal flow, overlay and gradient removed. */
+slot-picker[expanded] .sp-more {
+  position: static;
+}
+
+slot-picker[expanded] .sp-more::before {
+  content: none;
+}
+
 .sp-more-button {
+  position: relative;
+  z-index: 1;
   border: 0;
   background: transparent;
   color: var(--sp-accent);

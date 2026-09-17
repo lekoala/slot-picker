@@ -1560,3 +1560,87 @@ test("loading is announced with aria-busy and no visible status line", async ({ 
   expect(result.visible).toBe(false);
   expect(result.afterBusy).toBeNull();
 });
+
+test("the home shortcut reserves its space when configured", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "3");
+    picker.setAttribute("min", "2026-11-17");
+    picker.setAttribute("max", "2026-12-15");
+    picker.setAttribute("home-date", "2026-11-17");
+    picker.days = [{ date: "2026-11-17", slots: [{ start: "09:00" }] }];
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    const atHome = {
+      height: picker.getBoundingClientRect().height,
+      wrapper: Boolean(picker.querySelector(".sp-shortcuts")),
+      buttons: picker.querySelectorAll(".sp-home").length,
+    };
+    picker.goTo("2026-11-25");
+    await new Promise(requestAnimationFrame);
+    const away = {
+      height: picker.getBoundingClientRect().height,
+      wrapper: Boolean(picker.querySelector(".sp-shortcuts")),
+      buttons: picker.querySelectorAll(".sp-home").length,
+    };
+    return { atHome, away };
+  });
+
+  expect(result.atHome.wrapper).toBe(true);
+  expect(result.atHome.buttons).toBe(0);
+  expect(result.away.wrapper).toBe(true);
+  expect(result.away.buttons).toBe(1);
+  // The shortcut appearing must not move the content below.
+  expect(Math.abs(result.atHome.height - result.away.height)).toBeLessThanOrEqual(1);
+});
+
+test("collapsed show more floats in the reserved footer band", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "3");
+    picker.setAttribute("max-visible-rows", "2");
+    picker.days = [
+      { date: "2026-11-17", slots: [{ start: "09:00" }, { start: "10:00" }, { start: "11:00" }] },
+    ];
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    const content = picker.querySelector(".sp-content");
+    const more = picker.querySelector(".sp-more");
+    const grid = picker.querySelector(".sp-grid");
+    const collapsed = {
+      position: getComputedStyle(more).position,
+      gradient: getComputedStyle(more, "::before").backgroundImage,
+      moreTop: more.getBoundingClientRect().top,
+      gridBottom: grid.getBoundingClientRect().bottom,
+      contentBottom: content.getBoundingClientRect().bottom,
+    };
+
+    picker.expanded = true;
+    await new Promise(requestAnimationFrame);
+    const expanded = {
+      position: getComputedStyle(picker.querySelector(".sp-more")).position,
+      gradient: getComputedStyle(picker.querySelector(".sp-more"), "::before").content,
+    };
+    return { collapsed, expanded };
+  });
+
+  expect(result.collapsed.position).toBe("absolute");
+  expect(result.collapsed.gradient).toContain("gradient");
+  // The control sits in the reserved footer band, below the last slot row.
+  expect(result.collapsed.moreTop).toBeGreaterThanOrEqual(result.collapsed.gridBottom - 1);
+  expect(result.collapsed.moreTop).toBeLessThanOrEqual(result.collapsed.contentBottom);
+  expect(result.expanded.position).toBe("static");
+  expect(result.expanded.gradient).toBe("none");
+});

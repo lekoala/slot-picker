@@ -806,14 +806,15 @@ export class SlotPickerElement extends HTMLElement {
         ? `<div class="sp-status sp-status-error" role="status">${escapeHtml(String(this.#error))}</div>`
         : "";
 
-    // `home` is a shortcut to a reference date, not the mirror of `next`: it
-    // stays out of the symmetric prev/next rail and only appears when the
-    // reference date is actually outside the visible range.
+    // `home` is a shortcut to a reference date, not the mirror of `next`. When
+    // `home-date` is configured the wrapper stays in the DOM so its height is
+    // reserved, while the button only appears when the reference date is
+    // actually outside the visible range.
+    const homeAvailable = this.hasAttribute("home-date") && !invalid;
     const homeInRange =
-      !invalid &&
+      homeAvailable &&
       compareDates(this.homeDate, this.range.start) >= 0 &&
       compareDates(this.homeDate, this.range.end) <= 0;
-    const home = this.hasAttribute("home-date") && !invalid && !homeInRange;
 
     this.style.setProperty("--_sp-day-count", String(Math.max(1, count)));
     this.style.setProperty("--_sp-max-visible-rows", String(this.maxVisibleRows));
@@ -834,7 +835,13 @@ export class SlotPickerElement extends HTMLElement {
         </div>
         <button type="button" class="sp-nav sp-nav-next" aria-label="${escapeAttr(messages.next)}"${canNext ? "" : " disabled"}>${NEXT_ICON}</button>
       </div>
-      ${home ? `<div class="sp-shortcuts"><button type="button" class="sp-home">${escapeHtml(messages.home)}</button></div>` : ""}
+      ${
+        homeAvailable
+          ? `<div class="sp-shortcuts">${
+              homeInRange ? "" : `<button type="button" class="sp-home">${escapeHtml(messages.home)}</button>`
+            }</div>`
+          : ""
+      }
     </div>`;
 
     const selector = pendingSelector || fallbackSelector;

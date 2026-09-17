@@ -159,6 +159,16 @@ past that floor. In `layout="day"`, only the empty state gets a baseline.
   `--sp-collapsed-block-size` describe the reserved area.
 - `--sp-panel-min-block-size` is the day baseline.
 
+When `home-date` is configured, the `.sp-shortcuts` wrapper stays in the DOM
+even while `homeDate` is already visible, so the shortcut appearing never shifts
+the page. Its reserved height is `--sp-shortcuts-block-size` (default `2.5rem`).
+
+While collapsed, the "show more" control floats inside the reserved footer band
+instead of adding a row: a gradient (`--sp-more-fade-size`, `--sp-more-bg`)
+rises above it to suggest the availability that is not rendered. Hidden slots
+stay out of the DOM. Expanding returns the control to normal flow, with no
+overlay and no gradient.
+
 Loading is signalled by `aria-busy="true"` on the host plus a CSS fade that only
 starts after `--sp-loading-fade-delay` (default `400ms`), so fast responses
 never flicker. `messages.loading` stays announced through a visually hidden

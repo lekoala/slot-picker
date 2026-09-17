@@ -68,7 +68,9 @@ Acceptance:
 - collapsing is presentation only;
 - hidden slots remain part of the loaded model;
 - "show more" expands without fetching again;
-- selection remains stable across expand/collapse.
+- selection remains stable across expand/collapse;
+- while collapsed, "show more" floats inside the reserved footer band and a gradient hints at the availability that is not rendered; expanding returns it to normal flow with no overlay;
+- hidden slots are not rendered in the DOM while collapsed, so no invisible button can be focused.
 
 ## U6 — Keyboard-only slot choice
 
@@ -147,7 +149,7 @@ Acceptance:
 - `goToNextAvailability()` asks the source (`source.next`) or falls back to a `nextrequest` event; it may skip several windows and is never merged with `next()`; it returns the destination actually reached (clamped to `min`/`max`), never the raw source proposal;
 - `configure()` validates all options before applying any: an invalid option throws and leaves the component unchanged;
 - navigation controls are a symmetric `previous`/`next` pair framing the projection; they are the only range-navigation chrome;
-- `goHome()` (opt-in via `home-date`) is a persistent capability but an auxiliary shortcut, kept outside the prev/next rail; it is offered only while `homeDate` is outside the visible range;
+- `goHome()` (opt-in via `home-date`) is a persistent capability but an auxiliary shortcut, kept outside the prev/next rail; it is offered only while `homeDate` is outside the visible range; its wrapper reserves its height whenever `home-date` is set, so the shortcut appearing later never shifts the content;
 - there is no "go to end" action;
 - `goToNextAvailability()` is a contextual action, never permanent chrome: it is surfaced in the range empty state when `next-availability` is set;
 - a window with no slot and no notice renders a range empty state (`.sp-range-empty` replacing the projection, with a `next()` action, plus the contextual availability action when `next-availability` is set);
