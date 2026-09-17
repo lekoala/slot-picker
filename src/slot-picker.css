@@ -34,6 +34,13 @@
 }
 
 .sp-shell {
+  display: block;
+}
+
+/* `previous`/`next` are a symmetric pair around a centered projection. They
+   are the only range-navigation chrome; `home` is not their mirror and lives
+   in `.sp-shortcuts` instead. */
+.sp-projection {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: start;
@@ -44,10 +51,28 @@
   min-inline-size: 0;
 }
 
-.sp-nav-group {
+/* Auxiliary, start-aligned shortcut. Rendered only when `homeDate` is outside
+   the visible range, i.e. when it would actually change something. */
+.sp-shortcuts {
   display: flex;
-  align-items: flex-start;
-  gap: var(--sp-gap);
+  justify-content: flex-start;
+  margin-block-start: var(--sp-gap);
+}
+
+.sp-home {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0;
+  border: 0;
+  background: transparent;
+  color: var(--sp-accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.sp-home:hover {
+  text-decoration: underline;
 }
 
 .sp-grid {
@@ -254,6 +279,13 @@ html[dir="rtl"] .sp-nav svg {
   color: var(--sp-muted);
 }
 
+.sp-range-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
 .sp-range-empty-next {
   border: 0;
   border-radius: var(--sp-radius);
@@ -268,7 +300,22 @@ html[dir="rtl"] .sp-nav svg {
   background: color-mix(in srgb, var(--sp-accent) 85%, var(--sp-bg));
 }
 
-.sp-range-empty-next:focus-visible {
+.sp-range-empty-availability {
+  border: 1px solid var(--sp-border);
+  border-radius: var(--sp-radius);
+  padding: 0.6rem 1rem;
+  background: var(--sp-bg);
+  color: var(--sp-accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.sp-range-empty-availability:hover {
+  background: var(--sp-hover);
+}
+
+.sp-range-empty-next:focus-visible,
+.sp-range-empty-availability:focus-visible {
   outline: 2px solid var(--sp-focus);
   outline-offset: 2px;
 }
@@ -391,6 +438,7 @@ slot-picker[layout="day"] .sp-day-notice-description {
 }
 
 .sp-nav:focus-visible,
+.sp-home:focus-visible,
 .sp-more-button:focus-visible,
 .sp-notice[data-day-index]:focus-visible,
 .sp-strip-day:focus-visible {

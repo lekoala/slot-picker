@@ -3,7 +3,7 @@ import { slotValue } from "../model.js";
 
 /** @typedef {import("../model.js").Slot} Slot */
 /** @typedef {{oneSlot:string,manySlots:string}} SlotCountMessages */
-/** @typedef {{rangeEmptyTitle:string,rangeEmptyDescription:string,rangeEmptyNext:string}} RangeEmptyMessages */
+/** @typedef {{rangeEmptyTitle:string,rangeEmptyDescription:string,rangeEmptyNext:string,nextAvailability:string}} RangeEmptyMessages */
 
 /** @type {Record<string,string>} */
 const ENTITIES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
@@ -110,11 +110,13 @@ export function slotCountText(count, messages) {
 /**
  * Range-level empty state, distinct from per-day empty days.
  * Rendered only when the whole window has no slot and no notice; the theme
- * decides how prominent it is. The action stays `next()` (next window), never
- * "next availability" (which may skip several windows through the source).
- * @param {{start:string,end:string,invalid:boolean,canNext:boolean,locale:string,messages:RangeEmptyMessages}} options
+ * decides how prominent it is. Two actions stay distinct: `next()` moves to
+ * the immediately following window, while `next availability` (opt-in via
+ * `next-availability`) is the contextual business search that may skip
+ * several windows through the source. They are never merged.
+ * @param {{start:string,end:string,invalid:boolean,canNext:boolean,nextAvailability:boolean,locale:string,messages:RangeEmptyMessages}} options
  */
-export function rangeEmpty({ start, end, invalid, canNext, locale, messages }) {
+export function rangeEmpty({ start, end, invalid, canNext, nextAvailability, locale, messages }) {
   const showDescription = !invalid && Boolean(start);
   let description = "";
   if (showDescription) {
@@ -128,9 +130,18 @@ export function rangeEmpty({ start, end, invalid, canNext, locale, messages }) {
       .replace("{end}", formatter.format(toUtcDate(end)));
     description = `<p class="sp-range-empty-description">${escapeHtml(text)}</p>`;
   }
-  const action = canNext
-    ? `<button type="button" class="sp-range-empty-next">${escapeHtml(messages.rangeEmptyNext)}</button>`
-    : "";
+  const actions = [];
+  if (canNext) {
+    actions.push(
+      `<button type="button" class="sp-range-empty-next">${escapeHtml(messages.rangeEmptyNext)}</button>`,
+    );
+  }
+  if (nextAvailability && !invalid) {
+    actions.push(
+      `<button type="button" class="sp-range-empty-availability">${escapeHtml(messages.nextAvailability)}</button>`,
+    );
+  }
+  const action = actions.length ? `<div class="sp-range-empty-actions">${actions.join("")}</div>` : "";
   return `<div class="sp-range-empty">
     <strong class="sp-range-empty-title">${escapeHtml(messages.rangeEmptyTitle)}</strong>
     ${description}

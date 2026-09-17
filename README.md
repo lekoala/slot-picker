@@ -104,9 +104,19 @@ picker.configure({ min: "2026-11-17", max: "2027-03-31", dayCount: 7, responsive
 per setting. Event order is stable: `rangechange`, then `daychange`, then any
 reload. Resizing and navigating change the range but never `value`.
 
+Navigation chrome is a symmetric `previous`/`next` pair framing the projection.
+`home` is a persistent capability but not their mirror: it lives in an
+auxiliary, start-aligned shortcut and only appears while `homeDate` is outside
+the visible range, so it never clutters the initial window. There is no "go to
+end". `goToNextAvailability()` is contextual and appears in the range empty
+state when `next-availability` is set, because that is exactly where a real
+business search makes sense. It is never merged with `next()`. The responsive
+capacity is resolved from the projection's own width, inside the rail.
+
 A window with no slot and no notice renders a range empty state
-(`.sp-range-empty`) and a `next()` action. A window with a notice but no slots
-keeps its normal projection, so "exceptionally unavailable" stays distinct from
+(`.sp-range-empty`) with a `next()` action, plus the availability action when
+`next-availability` is set. A window with a notice but no slots keeps its
+normal projection, so "exceptionally unavailable" stays distinct from
 "no availability".
 
 A day notice is never a fake slot. `notice-display` chooses how it projects:

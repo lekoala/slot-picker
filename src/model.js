@@ -5,13 +5,15 @@ const TIME_RE = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 /**
  * Default width-to-capacity ladder for `responsive` projection.
  * Resolved against the component's own inline size, never the viewport.
+ * Calibrated after navigation stopped reserving grid tracks: each step is the
+ * width at which a column still measures ~110px in the fixtures.
  * @type {readonly {minWidth:number,dayCount:number}[]}
  */
 export const RESPONSIVE_BREAKPOINTS = Object.freeze([
-  Object.freeze({ minWidth: 640, dayCount: 5 }),
+  Object.freeze({ minWidth: 600, dayCount: 5 }),
   Object.freeze({ minWidth: 480, dayCount: 4 }),
   Object.freeze({ minWidth: 360, dayCount: 3 }),
-  Object.freeze({ minWidth: 256, dayCount: 2 }),
+  Object.freeze({ minWidth: 260, dayCount: 2 }),
   Object.freeze({ minWidth: 0, dayCount: 1 }),
 ]);
 

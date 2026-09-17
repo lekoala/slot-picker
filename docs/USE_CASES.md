@@ -131,14 +131,18 @@ Acceptance:
 - `min`/`max` are hard bounds: `min <= start` and `end <= max`;
 - when the requested `dayCount` does not fit the bounds, the resolved `visibleDayCount` shrinks instead of showing out-of-bounds days;
 - `min > max` is an explicit invalid configuration: `range` is `{ start: "", end: "", dayCount: 0 }`, `data-invalid-range` is set, navigation is disabled, and the source is never called;
-- `dayCount` is the consumer's maximum intention; `visibleDayCount` is the capacity resolved from bounds and the component's own inline width;
-- responsive resolution is opt-in via `responsive`, uses `ResizeObserver`, and never reads `window.innerWidth`; `responsiveBreakpoints` is overridable;
+- `dayCount` is the consumer's maximum intention; `visibleDayCount` is the capacity resolved from bounds and the width available to the projection;
+- responsive resolution is opt-in via `responsive`, uses `ResizeObserver`, and never reads `window.innerWidth`; it measures the projection width (inside the navigation rail), not the host width; `responsiveBreakpoints` is overridable;
 - changing `visibleDayCount` keeps `activeDate` visible by shifting `start` just enough, within the bounds;
 - `previous()`/`next()` move to the adjacent window of `visibleDayCount` days and never select;
 - `goTo(date)` brings `date` into the window and consults it, respecting the bounds;
 - `goHome()` returns to `homeDate`, a reference date that is never confused with `min`;
 - `goToNextAvailability()` asks the source (`source.next`) or falls back to a `nextrequest` event; it may skip several windows and is never merged with `next()`;
-- a window with no slot and no notice renders a range empty state (`.sp-range-empty` replacing the projection, with a `next()` action);
+- navigation controls are a symmetric `previous`/`next` pair framing the projection; they are the only range-navigation chrome;
+- `goHome()` (opt-in via `home-date`) is a persistent capability but an auxiliary shortcut, kept outside the prev/next rail; it is offered only while `homeDate` is outside the visible range;
+- there is no "go to end" action;
+- `goToNextAvailability()` is a contextual action, never permanent chrome: it is surfaced in the range empty state when `next-availability` is set;
+- a window with no slot and no notice renders a range empty state (`.sp-range-empty` replacing the projection, with a `next()` action, plus the contextual availability action when `next-availability` is set);
 - a window with a notice but no slots keeps the normal projection so the exception stays visible;
 - resize changes the range, never `value`; event order is stable (`rangechange`, then `daychange`, then any reload).
 

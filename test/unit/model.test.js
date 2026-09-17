@@ -117,7 +117,12 @@ describe("bounded and responsive navigation", () => {
     expect(resolveVisibleDayCount(7, 100)).toBe(1);
     expect(resolveVisibleDayCount(2, 700)).toBe(2);
     expect(resolveVisibleDayCount(0, 700)).toBe(0);
-    expect(RESPONSIVE_BREAKPOINTS[0].minWidth).toBe(640);
+    // Measured thresholds: each step keeps a column around 110px wide.
+    expect(RESPONSIVE_BREAKPOINTS[0].minWidth).toBe(600);
+    expect(resolveVisibleDayCount(7, 600)).toBe(5);
+    expect(resolveVisibleDayCount(7, 599)).toBe(4);
+    expect(resolveVisibleDayCount(7, 260)).toBe(2);
+    expect(resolveVisibleDayCount(7, 259)).toBe(1);
   });
 
   test("normalizeBreakpoints sorts descending and clamps counts", () => {

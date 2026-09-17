@@ -196,8 +196,9 @@ test("responsive resize changes the range but preserves activeDate", async ({ pa
   }, FIVE_DAYS);
 
   expect(result.wide.count).toBe(5);
-  expect(result.count).toBe(3);
-  expect(result.range).toEqual({ start: "2026-11-18", end: "2026-11-20", dayCount: 3 });
+  // 360px host leaves ~264px to the projection: two comfortable columns.
+  expect(result.count).toBe(2);
+  expect(result.range).toEqual({ start: "2026-11-19", end: "2026-11-20", dayCount: 2 });
   expect(result.activeDate).toBe("2026-11-20");
   expect(result.value).toBe("");
 });
@@ -231,6 +232,125 @@ test("an empty range replaces the projection and next() advances the window", as
   expect(result.empty).toBe(true);
   expect(result.projections).toBe(0);
   expect(result.start).toBe("2026-11-20");
+});
+
+test("navigation is a symmetric prev/next rail with home kept outside it", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async (days) => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "3");
+    picker.setAttribute("home-date", "2026-11-17");
+    picker.setAttribute("min", "2026-11-17");
+    picker.setAttribute("max", "2026-12-15");
+    picker.days = days;
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    const prev = picker.querySelector(".sp-nav-prev").getBoundingClientRect();
+    const next = picker.querySelector(".sp-nav-next").getBoundingClientRect();
+    const grid = picker.querySelector(".sp-grid").getBoundingClientRect();
+    // At the reference window the shortcut has nothing to do: it stays out.
+    const shortcutAtHome = picker.querySelectorAll(".sp-home").length;
+
+    picker.goTo("2026-12-08");
+    await new Promise(requestAnimationFrame);
+    const shortcutAway = picker.querySelectorAll(".sp-home").length;
+    picker.querySelector(".sp-home").click();
+    await new Promise(requestAnimationFrame);
+
+    return {
+      shortcutAtHome,
+      shortcutAway,
+      prevBeforeGrid: prev.right <= grid.left + 1,
+      nextAfterGrid: next.left >= grid.right - 1,
+      backHome: picker.range.start,
+      focusMovedToSlot: picker.querySelector(".sp-slot:focus") !== null,
+    };
+  }, FIVE_DAYS);
+
+  expect(result.shortcutAtHome).toBe(0);
+  expect(result.shortcutAway).toBe(1);
+  expect(result.prevBeforeGrid).toBe(true);
+  expect(result.nextAfterGrid).toBe(true);
+  expect(result.backHome).toBe("2026-11-17");
+  // The disappearing shortcut must not swallow keyboard focus.
+  expect(result.focusMovedToSlot).toBe(true);
+});
+
+test("day layout keeps the strip inside the symmetric nav rail", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async (days) => {
+    const host = document.createElement("div");
+    host.style.width = "360px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "3");
+    picker.setAttribute("layout", "day");
+    picker.days = days;
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    const strip = picker.querySelector(".sp-daystrip").getBoundingClientRect();
+    const prev = picker.querySelector(".sp-nav-prev").getBoundingClientRect();
+    const next = picker.querySelector(".sp-nav-next").getBoundingClientRect();
+    return {
+      prevBeforeStrip: prev.right <= strip.left + 1,
+      nextAfterStrip: next.left >= strip.right - 1,
+      columns: getComputedStyle(picker.querySelector(".sp-projection")).gridTemplateColumns.split(" ").length,
+    };
+  }, FIVE_DAYS);
+
+  expect(result.prevBeforeStrip).toBe(true);
+  expect(result.nextAfterStrip).toBe(true);
+  expect(result.columns).toBe(3);
+});
+
+test("next availability is contextual, never permanent chrome", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "3");
+    picker.setAttribute("next-availability", "");
+    picker.days = [
+      { date: "2026-11-17", slots: [] },
+      { date: "2026-11-18", slots: [] },
+      { date: "2026-11-19", slots: [] },
+    ];
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    let requested = "";
+    picker.addEventListener("nextrequest", (event) => {
+      requested = event.detail.after;
+    });
+    const permanent = picker.querySelectorAll(".sp-nav-availability").length;
+    const emptyAction = picker.querySelector(".sp-range-empty-availability");
+    emptyAction.click();
+    await new Promise(requestAnimationFrame);
+
+    picker.days = [{ date: "2026-11-17", slots: [{ start: "09:00" }] }];
+    await new Promise(requestAnimationFrame);
+    return {
+      permanent,
+      emptyAction: Boolean(emptyAction),
+      requested,
+      populated: picker.querySelectorAll(".sp-nav-availability").length,
+    };
+  });
+
+  expect(result.permanent).toBe(0);
+  expect(result.emptyAction).toBe(true);
+  expect(result.requested).toBe("2026-11-19");
+  expect(result.populated).toBe(0);
 });
 
 test("a notice without slots keeps the projection and the range empty state stays out", async ({ page }) => {

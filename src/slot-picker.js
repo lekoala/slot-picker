@@ -26,10 +26,6 @@ const PREV_ICON =
   '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4 6.5 10l6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const NEXT_ICON =
   '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7.5 4 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-const HOME_ICON =
-  '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10.5 4 5.5 10l5 6M16 4l-5 6 5 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-const AVAILABILITY_ICON =
-  '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m9.5 4 5 6-5 6M4 4l5 6-5 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 /** Attributes that change the resolved visible range. */
 const RANGE_ATTRIBUTES = new Set(["start", "min", "max", "day-count", "responsive"]);
@@ -132,7 +128,9 @@ export class SlotPickerElement extends HTMLElement {
     if (!this.hasAttribute("layout")) this.setAttribute("layout", "columns");
     this.#initializing = false;
 
-    this.#measuredWidth = this.getBoundingClientRect().width;
+    // Without a ResizeObserver the projection width can never be measured
+    // accurately; fall back to the host width so `responsive` still resolves.
+    this.#measuredWidth = typeof ResizeObserver === "undefined" ? this.getBoundingClientRect().width : null;
     if (!this.#resizeObserver && typeof ResizeObserver !== "undefined") {
       this.#resizeObserver = new ResizeObserver((entries) => this.#onResize(entries));
     }
@@ -564,10 +562,19 @@ export class SlotPickerElement extends HTMLElement {
   #onResize(entries) {
     const entry = entries[entries.length - 1];
     const box = entry?.contentBoxSize?.[0];
-    const width = box ? box.inlineSize : (entry?.contentRect.width ?? 0);
+    const hostWidth = box ? box.inlineSize : (entry?.contentRect.width ?? 0);
+    // Capacity follows the projection's own width, not the host: the nav rail
+    // is chrome and must not inflate the resolved day count.
+    const width = this.#contentWidth() ?? hostWidth;
     const previous = this.visibleDayCount;
     this.#measuredWidth = width;
     if (this.visibleDayCount !== previous) this.#reconcile({ pinActive: true });
+  }
+
+  /** Width actually available to the projection, inside the nav rail. */
+  #contentWidth() {
+    const content = this.querySelector(".sp-content");
+    return content ? content.getBoundingClientRect().width : null;
   }
 
   /** @param {string} date @param {boolean} emit */
@@ -634,8 +641,8 @@ export class SlotPickerElement extends HTMLElement {
     }
     if (element.classList.contains("sp-nav-prev")) return ".sp-nav-prev";
     if (element.classList.contains("sp-nav-next")) return ".sp-nav-next";
-    if (element.classList.contains("sp-nav-home")) return ".sp-nav-home";
-    if (element.classList.contains("sp-nav-availability")) return ".sp-nav-availability";
+    if (element.classList.contains("sp-home")) return ".sp-home";
+    if (element.classList.contains("sp-range-empty-availability")) return ".sp-range-empty-availability";
     if (element.classList.contains("sp-range-empty-next")) return ".sp-range-empty-next";
     if (element.classList.contains("sp-more-button")) return ".sp-more-button";
     if (element.classList.contains("sp-notice")) {
@@ -673,6 +680,7 @@ export class SlotPickerElement extends HTMLElement {
         end: this.range.end,
         invalid,
         canNext,
+        nextAvailability: this.hasAttribute("next-availability"),
         locale,
         messages,
       });
@@ -708,32 +716,31 @@ export class SlotPickerElement extends HTMLElement {
         ? `<div class="sp-status sp-status-error" role="status">${escapeHtml(String(this.#error))}</div>`
         : "";
 
-    const homeButton = this.hasAttribute("home-date")
-      ? `<button type="button" class="sp-nav sp-nav-home" aria-label="${escapeAttr(messages.home)}"${invalid ? " disabled" : ""}>${HOME_ICON}</button>`
-      : "";
-    const availabilityButton = this.hasAttribute("next-availability")
-      ? `<button type="button" class="sp-nav sp-nav-availability" aria-label="${escapeAttr(messages.nextAvailability)}"${invalid ? " disabled" : ""}>${AVAILABILITY_ICON}</button>`
-      : "";
+    // `home` is a shortcut to a reference date, not the mirror of `next`: it
+    // stays out of the symmetric prev/next rail and only appears when the
+    // reference date is actually outside the visible range.
+    const homeInRange =
+      !invalid &&
+      compareDates(this.homeDate, this.range.start) >= 0 &&
+      compareDates(this.homeDate, this.range.end) <= 0;
+    const home = this.hasAttribute("home-date") && !invalid && !homeInRange;
 
     this.style.setProperty("--_sp-day-count", String(Math.max(1, count)));
     this.innerHTML = `<div class="sp-shell" data-layout="${this.layout}">
-      <div class="sp-nav-group">
-        ${homeButton}
+      <div class="sp-projection">
         <button type="button" class="sp-nav sp-nav-prev" aria-label="${escapeAttr(messages.previous)}"${canPrevious ? "" : " disabled"}>${PREV_ICON}</button>
-      </div>
-      <div class="sp-content">
-        ${status}
-        ${content}
-        ${
-          hasOverflow
-            ? `<div class="sp-more"><button type="button" class="sp-more-button">${escapeHtml(this.expanded ? messages.showLess : messages.showMore)}</button></div>`
-            : ""
-        }
-      </div>
-      <div class="sp-nav-group">
+        <div class="sp-content">
+          ${status}
+          ${content}
+          ${
+            hasOverflow
+              ? `<div class="sp-more"><button type="button" class="sp-more-button">${escapeHtml(this.expanded ? messages.showLess : messages.showMore)}</button></div>`
+              : ""
+          }
+        </div>
         <button type="button" class="sp-nav sp-nav-next" aria-label="${escapeAttr(messages.next)}"${canNext ? "" : " disabled"}>${NEXT_ICON}</button>
-        ${availabilityButton}
       </div>
+      ${home ? `<div class="sp-shortcuts"><button type="button" class="sp-home">${escapeHtml(messages.home)}</button></div>` : ""}
     </div>`;
 
     const selector = pendingSelector || fallbackSelector;
@@ -750,8 +757,17 @@ export class SlotPickerElement extends HTMLElement {
 
     if (target.closest(".sp-nav-prev")) return this.previous();
     if (target.closest(".sp-nav-next")) return this.next();
-    if (target.closest(".sp-nav-home")) return this.goHome();
+    if (target.closest(".sp-home")) {
+      // The shortcut disappears once the reference date is back in range, so
+      // hand focus to the roving slot instead of losing it with the button.
+      this.#pendingFocus = '.sp-slot[tabindex="0"]';
+      return this.goHome();
+    }
     if (target.closest(".sp-nav-availability")) {
+      void this.goToNextAvailability();
+      return;
+    }
+    if (target.closest(".sp-range-empty-availability")) {
       void this.goToNextAvailability();
       return;
     }
