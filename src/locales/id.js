@@ -7,6 +7,7 @@ export default {
   showLess: "Tampilkan lebih sedikit",
   loading: "Memuat ketersediaan",
   empty: "Tidak ada ketersediaan",
+  closed: "Tutup",
   rangeEmptyTitle: "Tidak ada ketersediaan pada periode ini",
   rangeEmptyDescription: "Dari {start} hingga {end}",
   rangeEmptyNext: "Lihat periode berikutnya",

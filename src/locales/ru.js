@@ -7,6 +7,7 @@ export default {
   showLess: "Показать меньше",
   loading: "Загрузка доступности",
   empty: "Нет доступных слотов",
+  closed: "Закрыто",
   rangeEmptyTitle: "На этот период нет доступных слотов",
   rangeEmptyDescription: "С {start} по {end}",
   rangeEmptyNext: "Показать следующий период",

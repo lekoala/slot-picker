@@ -7,6 +7,7 @@ export default {
   showLess: "Voir moins",
   loading: "Chargement des disponibilités",
   empty: "Aucune disponibilité",
+  closed: "Fermé",
   rangeEmptyTitle: "Aucun créneau disponible sur cette période",
   rangeEmptyDescription: "Du {start} au {end}",
   rangeEmptyNext: "Voir la période suivante",

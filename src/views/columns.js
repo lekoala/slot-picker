@@ -14,7 +14,7 @@ import {
 const UTC_FORMAT = { timeZone: "UTC" };
 
 /** @typedef {import("../model.js").SlotDay} SlotDay */
-/** @typedef {import("./shared.js").SlotCountMessages & {empty:string}} ColumnsMessages */
+/** @typedef {import("./shared.js").SlotCountMessages & {empty:string,closed:string}} ColumnsMessages */
 
 /**
  * Columns projection: N civil days side by side with their slots.
@@ -59,10 +59,12 @@ export function renderColumns({
             ? noticeIndicator({ interactive: true, dayIndex, ...day.notice })
             : "";
         const noticeContent = day.notice && inline ? noticeBlock(day.notice) : "";
+        const closed = Boolean(day.closed);
 
         let body;
         if (day.slots.length === 0) {
-          body = `${noticeContent}${dayEmpty(messages.empty)}`;
+          // "Closed" is a day state, distinct from "open but no availability".
+          body = `${noticeContent}${dayEmpty(closed ? messages.closed : messages.empty)}`;
         } else {
           const slots = day.slots;
           const slotMarkup = slots
@@ -87,7 +89,7 @@ export function renderColumns({
           body = `${noticeContent}<div class="sp-slots" role="listbox" aria-label="${escapeAttr(`${weekday} ${displayDate}`)}">${slotMarkup}${empties}</div>`;
         }
 
-        return `<section class="sp-day" data-date="${escapeAttr(day.date)}">
+        return `<section class="sp-day" data-date="${escapeAttr(day.date)}"${closed ? " data-closed" : ""}>
         <header class="sp-day-header">
           <span class="sp-weekday">${escapeHtml(weekday)}</span>
           <strong class="sp-date">${escapeHtml(displayDate)}</strong>

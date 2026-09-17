@@ -23,7 +23,11 @@ export const RESPONSIVE_BREAKPOINTS = Object.freeze([
  * @typedef {{start:string,end?:string,disabled?:boolean,description?:string,tone?:string,meta?:unknown}} Slot
  */
 /** @typedef {{label:string,description?:string,meta?:unknown}} DayNotice */
-/** @typedef {{date:string,slots:Slot[],notice?:DayNotice}} SlotDay */
+/**
+ * `closed` is a normal day state (weekend, weekly closure), not an exception:
+ * it stays distinct from `notice` and from an open day with no availability.
+ * @typedef {{date:string,slots:Slot[],closed?:boolean,notice?:DayNotice}} SlotDay
+ */
 
 const SLOT_RE = /^(\d{4}-\d{2}-\d{2})T((?:[01]\d|2[0-3]):[0-5]\d)$/;
 
@@ -83,8 +87,16 @@ export function normalizeDays(input) {
         .sort((a, b) => a.start.localeCompare(b.start));
 
       const notice = day.notice && typeof day.notice.label === "string" ? { ...day.notice } : undefined;
+      if (day.closed !== undefined && typeof day.closed !== "boolean") {
+        throw new TypeError(`Invalid day closed on ${day.date}`);
+      }
 
-      return { date: day.date, slots: normalizedSlots, ...(notice ? { notice } : {}) };
+      return {
+        date: day.date,
+        slots: normalizedSlots,
+        ...(day.closed ? { closed: true } : {}),
+        ...(notice ? { notice } : {}),
+      };
     })
     .sort((a, b) => a.date.localeCompare(b.date));
 }
@@ -227,13 +239,16 @@ export function hasSlots(days) {
 }
 
 /**
- * Any meaningful day content: a slot or a notice. A window with no slot but
- * a notice must keep its projection, so a medical exception stays visible
- * and is not collapsed into "no availability".
+ * Any meaningful day content: a slot, a notice or a closed day. A window with
+ * no slot but a notice or a closed state must keep its projection, so an
+ * exception or a recurring closure stays visible and is not collapsed into
+ * "no availability".
  * @param {SlotDay[]} days
  */
 export function hasDayContent(days) {
-  return days.some((day) => (Array.isArray(day.slots) && day.slots.length > 0) || Boolean(day.notice));
+  return days.some(
+    (day) => (Array.isArray(day.slots) && day.slots.length > 0) || Boolean(day.notice) || Boolean(day.closed),
+  );
 }
 
 /**

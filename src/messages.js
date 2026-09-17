@@ -7,6 +7,7 @@ const DEFAULT_MESSAGES = {
   showLess: "Show less",
   loading: "Loading availability",
   empty: "No availability",
+  closed: "Closed",
   rangeEmptyTitle: "No availability in this period",
   rangeEmptyDescription: "From {start} to {end}",
   rangeEmptyNext: "See the next period",

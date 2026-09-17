@@ -14,7 +14,7 @@ import {
 const UTC_FORMAT = { timeZone: "UTC" };
 
 /** @typedef {import("../model.js").SlotDay} SlotDay */
-/** @typedef {import("./shared.js").SlotCountMessages & {empty:string,days:string}} DayMessages */
+/** @typedef {import("./shared.js").SlotCountMessages & {empty:string,closed:string,days:string}} DayMessages */
 
 /**
  * Day projection: a strip of days plus the slots of the consulted day.
@@ -57,8 +57,9 @@ export function renderDay({
         const date = toUtcDate(day.date);
         const pressed = day.date === active.date;
         const isToday = day.date === today;
-        const count = slotCountText(day.slots.length, messages);
-        return `<button type="button" class="sp-strip-day" data-date="${escapeAttr(day.date)}" data-day-index="${dayIndex}" aria-pressed="${pressed ? "true" : "false"}"${isToday ? " data-today" : ""} tabindex="${pressed ? 0 : -1}">
+        const closed = Boolean(day.closed);
+        const count = closed ? messages.closed : slotCountText(day.slots.length, messages);
+        return `<button type="button" class="sp-strip-day" data-date="${escapeAttr(day.date)}" data-day-index="${dayIndex}" aria-pressed="${pressed ? "true" : "false"}"${isToday ? " data-today" : ""}${closed ? " data-closed" : ""} tabindex="${pressed ? 0 : -1}">
         <span class="sp-strip-weekday">${escapeHtml(formatterStripDay.format(date))}</span>
         <strong class="sp-strip-date">${escapeHtml(formatterStripDate.format(date))}</strong>
         <span class="sp-strip-count" aria-hidden="true">${escapeHtml(count)}</span>
@@ -84,9 +85,11 @@ export function renderDay({
       : "";
   const panelLabel = formatterPanelDay.format(toUtcDate(active.date));
 
+  const activeClosed = Boolean(active.closed);
+
   let panelBody;
   if (active.slots.length === 0) {
-    panelBody = `${notice}${dayEmpty(messages.empty)}`;
+    panelBody = `${notice}${dayEmpty(activeClosed ? messages.closed : messages.empty)}`;
   } else {
     const slots = active.slots
       .map(
@@ -107,7 +110,7 @@ export function renderDay({
   }
 
   const html = `<div class="sp-daystrip" role="group" aria-label="${escapeAttr(messages.days)}">${strip}</div>
-    <section class="sp-panel" data-date="${escapeAttr(active.date)}">
+    <section class="sp-panel" data-date="${escapeAttr(active.date)}"${activeClosed ? " data-closed" : ""}>
       <header class="sp-panel-header">
         <strong class="sp-panel-title">${escapeHtml(panelLabel)}</strong>
         ${headerNotice}

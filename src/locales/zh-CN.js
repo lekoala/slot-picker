@@ -7,6 +7,7 @@ export default {
   showLess: "收起",
   loading: "正在加载可预约时间",
   empty: "暂无可预约时间",
+  closed: "休息",
   rangeEmptyTitle: "该时间段暂无可预约时间",
   rangeEmptyDescription: "从 {start} 到 {end}",
   rangeEmptyNext: "查看下一个时间段",

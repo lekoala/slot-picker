@@ -1646,3 +1646,114 @@ test("collapsed show more floats in the reserved footer band", async ({ page }) 
   expect(result.expanded.position).toBe("static");
   expect(result.expanded.gradient).toBe("none");
 });
+
+test("a closed day stays in the civil window and shows Closed", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "2");
+    picker.days = [
+      { date: "2026-11-17", slots: [], closed: true },
+      { date: "2026-11-18", slots: [] },
+    ];
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    const closed = picker.querySelector('.sp-day[data-date="2026-11-17"]');
+    const open = picker.querySelector('.sp-day[data-date="2026-11-18"]');
+    return {
+      days: picker.querySelectorAll(".sp-day").length,
+      closedFlag: closed.hasAttribute("data-closed"),
+      closedText: closed.querySelector(".sp-day-empty").textContent.trim(),
+      openFlag: open.hasAttribute("data-closed"),
+      openText: open.querySelector(".sp-day-empty").textContent.trim(),
+    };
+  });
+
+  expect(result.days).toBe(2);
+  expect(result.closedFlag).toBe(true);
+  expect(result.closedText).toBe("Closed");
+  expect(result.openFlag).toBe(false);
+  expect(result.openText).toBe("No availability");
+});
+
+test("a window made only of closed days keeps the projection", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "3");
+    picker.days = [
+      { date: "2026-11-17", slots: [], closed: true },
+      { date: "2026-11-18", slots: [], closed: true },
+      { date: "2026-11-19", slots: [], closed: true },
+    ];
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+    return {
+      days: picker.querySelectorAll(".sp-day").length,
+      rangeEmpty: Boolean(picker.querySelector(".sp-range-empty")),
+      closed: picker.querySelectorAll(".sp-day[data-closed]").length,
+    };
+  });
+
+  expect(result.days).toBe(3);
+  expect(result.rangeEmpty).toBe(false);
+  expect(result.closed).toBe(3);
+});
+
+test("day layout marks a closed strip day and panel", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "3");
+    picker.setAttribute("layout", "day");
+    picker.setAttribute("active-date", "2026-11-18");
+    picker.days = [
+      { date: "2026-11-17", slots: [{ start: "09:00" }] },
+      { date: "2026-11-18", slots: [], closed: true },
+    ];
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    const strip = picker.querySelector('.sp-strip-day[data-date="2026-11-18"]');
+    return {
+      strip: strip.hasAttribute("data-closed"),
+      stripCount: strip.querySelector(".sp-strip-count").textContent.trim(),
+      panel: picker.querySelector(".sp-panel").hasAttribute("data-closed"),
+      panelText: picker.querySelector(".sp-panel .sp-day-empty").textContent.trim(),
+    };
+  });
+
+  expect(result.strip).toBe(true);
+  expect(result.stripCount).toBe("Closed");
+  expect(result.panel).toBe(true);
+  expect(result.panelText).toBe("Closed");
+});
+
+test("the demo showcases closed days", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(() => {
+    const picker = document.querySelector("#picker-closed");
+    return {
+      closed: picker.querySelectorAll(".sp-day[data-closed]").length,
+      openSlots: picker.querySelectorAll('.sp-day[data-date="2026-11-23"] .sp-slot').length,
+      closedText: picker.querySelector('.sp-day[data-date="2026-11-21"] .sp-day-empty').textContent.trim(),
+    };
+  });
+
+  expect(result.closed).toBe(2);
+  expect(result.openSlots).toBe(2);
+  expect(result.closedText).toBe("Closed");
+});

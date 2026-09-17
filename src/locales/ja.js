@@ -7,6 +7,7 @@ export default {
   showLess: "表示を減らす",
   loading: "空き状況を読み込み中",
   empty: "空きがありません",
+  closed: "休診",
   rangeEmptyTitle: "この期間に空きがありません",
   rangeEmptyDescription: "{start} から {end} まで",
   rangeEmptyNext: "次の期間を表示",

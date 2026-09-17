@@ -7,6 +7,7 @@ export default {
   showLess: "Mostrar menos",
   loading: "Cargando disponibilidad",
   empty: "Sin disponibilidad",
+  closed: "Cerrado",
   rangeEmptyTitle: "Sin disponibilidad en este período",
   rangeEmptyDescription: "Del {start} al {end}",
   rangeEmptyNext: "Ver el siguiente período",

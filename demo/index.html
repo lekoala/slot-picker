@@ -155,6 +155,14 @@
     <slot-picker id="picker-notice" start="2026-11-17" day-count="5"></slot-picker>
   </div>
   <div class="card">
+    <h2>Closed days</h2>
+    <p>
+      <code>closed: true</code> is a normal day state set by the source: the day stays in the civil
+      window and is styled through <code>[data-closed]</code>, distinct from an open day with no availability.
+    </p>
+    <slot-picker id="picker-closed" start="2026-11-21" day-count="3"></slot-picker>
+  </div>
+  <div class="card">
     <h2>Messages / locale</h2>
     <div class="row">
       <label for="locale">Language</label>
@@ -292,6 +300,14 @@
     const emptyPicker = document.querySelector("#picker-empty");
     emptyPicker.days = emptyDays;
 
+    const closedDays = [
+      { date: "2026-11-21", slots: [], closed: true },
+      { date: "2026-11-22", slots: [], closed: true },
+      { date: "2026-11-23", slots: [{ start: "09:00" }, { start: "11:30" }] }
+    ];
+    const closedPicker = document.querySelector("#picker-closed");
+    closedPicker.days = closedDays;
+
     const noticePicker = document.querySelector("#picker-notice");
     noticePicker.days = noticeDays;
     const noticeSelect = document.querySelector("#notice-display");
@@ -339,7 +355,8 @@
     ];
 
     const output = document.querySelector("#output");
-    [...pickers, responsivePicker, emptyPicker, noticePicker, localePicker].forEach((picker) => {
+    [...pickers, responsivePicker, emptyPicker, noticePicker, closedPicker, localePicker].forEach(
+      (picker) => {
       picker.addEventListener("slotactivate", (event) => {
         output.textContent = `Selected: ${event.detail.value}`;
       });

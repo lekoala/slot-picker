@@ -227,6 +227,7 @@ re-render existing pickers, and no global `MutationObserver` is used.
       meta: {}
     }
   ],
+  closed: false,
   notice: {
     label: "Unavailable",
     description: "Optional longer explanation",
@@ -240,6 +241,33 @@ Dates are civil `YYYY-MM-DD`, times are `HH:mm`, and the selected value is
 setter rejects an impossible civil date such as `2026-02-31T10:00`; a malformed
 `value` attribute is ignored and reads as empty, so imperfect markup never
 breaks the element upgrade.
+
+### Open, empty and closed days
+
+Three cases stay distinct:
+
+- slots present → normal availability;
+- `slots: []`, open → `messages.empty` ("No availability");
+- `slots: []`, `closed: true` → `messages.closed` ("Closed").
+
+`closed` is a normal day state set by the application (weekend, weekly
+closure); the component computes no opening hours. Closed days stay in the
+civil window and are stylable through `[data-closed]`:
+
+```js
+picker.days = [{ date: "2026-11-22", slots: [], closed: true }];
+```
+
+```css
+slot-picker .sp-day[data-closed] {
+  --sp-closed-opacity: 0.4;
+}
+```
+
+`notice` remains reserved for exceptional information and may coexist with
+`closed`. To jump between windows by real availability, let the source expose
+`next()` and call `goToNextAvailability()`; the civil shape of a window never
+changes.
 
 ## Per-slot presentation
 

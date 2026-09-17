@@ -7,6 +7,7 @@ export default {
   showLess: "إظهار أقل",
   loading: "جارٍ تحميل التوفر",
   empty: "لا يوجد توفر",
+  closed: "مغلق",
   rangeEmptyTitle: "لا يوجد أي موعد متاح في هذه الفترة",
   rangeEmptyDescription: "من {start} إلى {end}",
   rangeEmptyNext: "عرض الفترة التالية",

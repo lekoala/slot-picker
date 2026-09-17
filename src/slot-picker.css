@@ -47,6 +47,8 @@
   --sp-more-fade-size: 4rem;
   --sp-more-bg: var(--sp-bg);
   --sp-panel-min-block-size: calc(2 * var(--sp-slot-block-size) + var(--sp-gap));
+  /* `closed` is a normal day state; themes may restyle it entirely. */
+  --sp-closed-opacity: 0.55;
   --sp-loading-fade-opacity: 0.72;
   --sp-loading-fade-delay: 400ms;
   display: block;
@@ -361,6 +363,14 @@ slot-picker[expanded] .sp-more::before {
   color: var(--sp-muted);
   font-size: 0.9rem;
   text-align: center;
+}
+
+/* A day closed by the application's opening rule. It stays in the civil
+   projection; only its presentation changes. */
+.sp-day[data-closed],
+.sp-panel[data-closed],
+.sp-strip-day[data-closed] {
+  opacity: var(--sp-closed-opacity, 0.55);
 }
 
 .sp-range-empty {

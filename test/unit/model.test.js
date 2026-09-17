@@ -52,6 +52,14 @@ describe("slot model", () => {
     );
   });
 
+  test("keeps a closed day and rejects an invalid flag", () => {
+    const [day] = normalizeDays([{ date: "2026-11-22", slots: [], closed: true }]);
+    expect(day.closed).toBe(true);
+    expect(() => normalizeDays([{ date: "2026-11-22", slots: [], closed: "yes" }])).toThrow(
+      /Invalid day closed/,
+    );
+  });
+
   test("fills empty visible days", () => {
     const days = visibleDays([{ date: "2026-11-18", slots: [] }], "2026-11-17", 3);
     expect(days.map((day) => day.date)).toEqual(["2026-11-17", "2026-11-18", "2026-11-19"]);
@@ -199,17 +207,21 @@ describe("bounded and responsive navigation", () => {
     expect(ensureVisible("2026-11-17", 5, "2026-11-17", "2026-11-17", "2026-11-19")).toBe("2026-11-17");
   });
 
-  test("hasSlots and hasDayContent differ on notice-only days", () => {
+  test("hasSlots and hasDayContent differ on notice-only and closed days", () => {
     const empty = normalizeDays([{ date: "2026-11-17", slots: [] }]);
     const notice = normalizeDays([
       { date: "2026-11-17", slots: [], notice: { label: "Exceptionally unavailable" } },
     ]);
+    const closed = normalizeDays([{ date: "2026-11-17", slots: [], closed: true }]);
     const bookable = normalizeDays([{ date: "2026-11-17", slots: [{ start: "09:00" }] }]);
 
     expect(hasSlots(empty)).toBe(false);
     expect(hasDayContent(empty)).toBe(false);
     expect(hasSlots(notice)).toBe(false);
     expect(hasDayContent(notice)).toBe(true);
+    expect(hasSlots(closed)).toBe(false);
+    // A closed day must keep the projection instead of collapsing to empty.
+    expect(hasDayContent(closed)).toBe(true);
     expect(hasSlots(bookable)).toBe(true);
   });
 });

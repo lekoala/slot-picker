@@ -7,6 +7,7 @@ export default {
   showLess: "Minder tonen",
   loading: "Beschikbaarheid laden",
   empty: "Geen beschikbaarheid",
+  closed: "Gesloten",
   rangeEmptyTitle: "Geen beschikbaarheid in deze periode",
   rangeEmptyDescription: "Van {start} tot {end}",
   rangeEmptyNext: "Volgende periode bekijken",

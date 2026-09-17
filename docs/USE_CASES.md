@@ -152,11 +152,27 @@ Acceptance:
 - `goHome()` (opt-in via `home-date`) is a persistent capability but an auxiliary shortcut, kept outside the prev/next rail; it is offered only while `homeDate` is outside the visible range; its wrapper reserves its height whenever `home-date` is set, so the shortcut appearing later never shifts the content;
 - there is no "go to end" action;
 - `goToNextAvailability()` is a contextual action, never permanent chrome: it is surfaced in the range empty state when `next-availability` is set;
-- a window with no slot and no notice renders a range empty state (`.sp-range-empty` replacing the projection, with a `next()` action, plus the contextual availability action when `next-availability` is set);
-- a window with a notice but no slots keeps the normal projection so the exception stays visible;
+- a window with no slot, no notice and no closed day renders a range empty state (`.sp-range-empty` replacing the projection, with a `next()` action, plus the contextual availability action when `next-availability` is set);
+- a window with a notice or a closed day but no slots keeps the normal projection, so the exception or the closure stays visible;
 - resize changes the range, never `value`; event order is stable (`rangechange`, then `daychange`, then any reload);
 - collapsed `columns` projection keeps a stable footprint derived from `max-visible-rows`: full, sparse and wholly empty ranges reserve the same height, so navigating between equivalent ranges never causes avoidable vertical layout shift;
 - `expanded` content may grow naturally past that floor; in `layout="day"`, only the empty state gets a baseline.
+
+## U11 — Closed days / sparse availability
+
+The source can distinguish a closed day from an open day with no availability,
+without the component knowing any opening-hours rule.
+
+Acceptance:
+
+- a day carries `closed: true` (for example a weekend or a weekly closure); the component never computes opening hours, recurrence or "Monday only";
+- the window still contains `visibleDayCount` consecutive civil days: closed days remain visible and are never compressed or hidden;
+- three cases stay distinct: slots present; `slots: []` and open → `messages.empty`; `slots: []` and `closed` → `messages.closed`;
+- a closed day is stylable through `[data-closed]` on the day, the panel and the day strip; `--sp-closed-opacity` is the default theming hook;
+- `notice` stays reserved for exceptional information and may coexist with `closed`;
+- a window whose only content is closed days keeps the normal projection instead of collapsing into the range empty state;
+- `source.next()` / `goToNextAvailability()` let the application jump to the next real availability between windows; they never change the civil shape of a window;
+- no recurrence or opening-hours rule enters the core.
 
 ## Not a use case for this package
 

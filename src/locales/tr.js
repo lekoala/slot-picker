@@ -7,6 +7,7 @@ export default {
   showLess: "Daha az göster",
   loading: "Uygunluk yükleniyor",
   empty: "Uygun zaman yok",
+  closed: "Kapalı",
   rangeEmptyTitle: "Bu dönemde uygun zaman yok",
   rangeEmptyDescription: "{start} ile {end} arası",
   rangeEmptyNext: "Sonraki dönemi gör",
