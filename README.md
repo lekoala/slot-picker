@@ -318,18 +318,21 @@ slot-picker .sp-slot[data-tone="video"] {
 The slot surface is `--sp-slot-bg`, `--sp-slot-fg`, `--sp-slot-border`,
 `--sp-slot-hover-bg`, `--sp-slot-selected-bg`, `--sp-slot-selected-fg`.
 
-An icon next to the time is theme-owned too. `::after` needs
-`grid-auto-flow: column`, because `.sp-slot` centers its content with a grid:
+An icon next to the time is theme-owned too. Make it an absolutely positioned
+badge: an in-flow `::after` (plus a gap) raises the slot's `min-content` and
+widens the whole day column, while a narrow column leaves no room beside the
+centered time.
 
 ```css
 slot-picker .sp-slot[data-tone="instant"] {
-  grid-auto-flow: column;
-  justify-content: center;
-  gap: 0.35rem;
+  position: relative;
 }
 slot-picker .sp-slot[data-tone="instant"]::after {
   content: "⚡";
-  font-size: 0.85em;
+  position: absolute;
+  inset-block-start: 0.2rem;
+  inset-inline-end: 0.25rem;
+  font-size: 0.6em;
   line-height: 1;
 }
 ```

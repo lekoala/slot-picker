@@ -857,6 +857,38 @@ test("inline notice never overflows a narrow column", async ({ page }) => {
   expect(result.blockWidth).toBeLessThanOrEqual(result.dayWidth + 1);
 });
 
+test("a slot never overflows its day column", async ({ page }) => {
+  await page.goto("/demo/index.html");
+
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "240px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "3");
+    picker.days = Array.from({ length: 3 }, (_, index) => ({
+      date: `2026-11-${String(17 + index).padStart(2, "0")}`,
+      // The demo's `instant` tone is the widest thing a slot can carry.
+      slots: [{ start: "08:00" }, { start: "21:00", ...(index === 0 ? { tone: "instant" } : {}) }],
+    }));
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    let overflowing = 0;
+    for (const day of picker.querySelectorAll(".sp-day")) {
+      const bounds = day.getBoundingClientRect();
+      for (const slot of day.querySelectorAll(".sp-slot, .sp-empty")) {
+        const box = slot.getBoundingClientRect();
+        if (box.left < bounds.left - 1 || box.right > bounds.right + 1) overflowing += 1;
+      }
+    }
+    return { overflowing };
+  });
+
+  expect(result.overflowing).toBe(0);
+});
+
 test("inline columns keeps a notice and its slots side by side", async ({ page }) => {
   await page.goto("/demo/index.html");
 

@@ -214,6 +214,9 @@ slot-picker[home-date] .sp-shortcuts {
 
 .sp-slots {
   display: grid;
+  /* Bound the single column to the day column: an `auto` track follows the
+     widest slot's min-content and would push every slot past the day card. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--sp-gap);
 }
 

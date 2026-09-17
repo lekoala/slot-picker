@@ -51,8 +51,10 @@
       --sp-slot-selected-bg: #dc2626;
       --sp-slot-selected-fg: #fff;
     }
-    /* Icon next to the time, owned entirely by the theme. `grid-auto-flow:
-       column` is required because `.sp-slot` centers its content with a grid. */
+    /* Icon next to the time, owned entirely by the theme. The glyph is an
+       absolutely positioned badge: an in-flow icon (`grid-auto-flow: column`
+       plus a gap) raises the slot's min-content and widens the day column,
+       while a narrow column leaves no room beside the centered time. */
     slot-picker .sp-slot[data-tone="instant"] {
       --sp-slot-bg: #fef3c7;
       --sp-slot-fg: #92400e;
@@ -60,13 +62,14 @@
       --sp-slot-hover-bg: #fde68a;
       --sp-slot-selected-bg: #d97706;
       --sp-slot-selected-fg: #fff;
-      grid-auto-flow: column;
-      justify-content: center;
-      gap: 0.35rem;
+      position: relative;
     }
     slot-picker .sp-slot[data-tone="instant"]::after {
       content: "⚡";
-      font-size: 0.85em;
+      position: absolute;
+      inset-block-start: 0.2rem;
+      inset-inline-end: 0.25rem;
+      font-size: 0.6em;
       line-height: 1;
     }
     .tone-legend { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-block: 0 1rem; font-size: 0.875rem; }
