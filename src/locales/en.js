@@ -5,7 +5,6 @@ export default {
   nextAvailability: "Next availability",
   showMore: "Show more availability",
   showLess: "Show less",
-  unavailable: "Unavailable",
   loading: "Loading availability",
   empty: "No availability",
   rangeEmptyTitle: "No availability in this period",

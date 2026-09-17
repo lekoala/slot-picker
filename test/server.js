@@ -11,7 +11,7 @@ const types = new Map([
   [".json", "application/json; charset=utf-8"],
 ]);
 
-createServer((request, response) => {
+const server = createServer((request, response) => {
   const url = new URL(request.url || "/", `http://${request.headers.host}`);
   // Compare the raw pathname before normalize(): on Windows normalize("/")
   // returns "\\", which never equals "/" and breaks the root route.
@@ -28,6 +28,18 @@ createServer((request, response) => {
 
   response.setHeader("content-type", types.get(extname(path)) || "application/octet-stream");
   createReadStream(path).pipe(response);
-}).listen(port, () => {
+});
+
+// Release keep-alive sockets so the process really exits; otherwise a lingering
+// server keeps the port busy after the test run.
+function shutdown() {
+  server.closeAllConnections?.();
+  server.close(() => process.exit(0));
+}
+
+process.once("SIGINT", shutdown);
+process.once("SIGTERM", shutdown);
+
+server.listen(port, () => {
   console.log(`http://localhost:${port}`);
 });

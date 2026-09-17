@@ -1180,7 +1180,7 @@ test("the selected slot is exposed as a selected option", async ({ page }) => {
   await expect(picker.locator('.sp-slot[role="option"]').first()).toBeVisible();
 });
 
-test("value rejects an impossible civil date", async ({ page }) => {
+test("value rejects an impossible civil date and ignores a malformed attribute", async ({ page }) => {
   await page.goto("/demo/index.html");
   const result = await page.evaluate(() => {
     const picker = document.createElement("slot-picker");
@@ -1191,9 +1191,139 @@ test("value rejects an impossible civil date", async ({ page }) => {
       threw = error instanceof TypeError;
     }
     picker.value = "2026-02-28T10:00";
-    return { threw, accepted: picker.value };
+
+    // Markup is not guaranteed to be valid: a bad attribute reads as empty and
+    // must never break the upgrade.
+    const malformed = document.createElement("slot-picker");
+    malformed.setAttribute("value", "2026-02-31T10:00");
+    const readback = malformed.value;
+    return { threw, accepted: picker.value, readback, attribute: malformed.getAttribute("value") };
   });
 
   expect(result.threw).toBe(true);
   expect(result.accepted).toBe("2026-02-28T10:00");
+  expect(result.readback).toBe("");
+  expect(result.attribute).toBe("2026-02-31T10:00");
+});
+
+test("removing the source returns to a neutral state", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "5");
+    host.append(picker);
+    document.body.append(host);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    picker.source = () => Promise.reject(new Error("backend down"));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    const errorShown = Boolean(picker.querySelector(".sp-status-error"));
+
+    picker.source = null;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    return {
+      errorShown,
+      afterRemoval: Boolean(picker.querySelector(".sp-status-error")),
+      status: Boolean(picker.querySelector(".sp-status")),
+    };
+  });
+
+  expect(result.errorShown).toBe(true);
+  expect(result.afterRemoval).toBe(false);
+  expect(result.status).toBe(false);
+});
+
+test("goToNextAvailability returns the destination actually reached", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "5");
+    picker.setAttribute("min", "2026-11-17");
+    picker.setAttribute("max", "2026-11-21");
+    picker.days = [{ date: "2026-11-17", slots: [{ start: "09:00" }] }];
+    // The source proposes a date beyond `max`: the component clamps it.
+    picker.source = { load: () => [], next: () => "2026-12-08" };
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    const returned = await picker.goToNextAvailability();
+    return { returned, activeDate: picker.activeDate, range: picker.range };
+  });
+
+  expect(result.returned).toBe("2026-11-21");
+  expect(result.activeDate).toBe("2026-11-21");
+  expect(result.range.end).toBe("2026-11-21");
+});
+
+test("configure is atomic when an option is invalid", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "5");
+    picker.setAttribute("min", "2026-11-17");
+    picker.setAttribute("max", "2026-12-31");
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    const before = { start: picker.start, min: picker.min, layout: picker.layout };
+    let threw = false;
+    try {
+      // Valid options interleaved with an invalid one: nothing may be applied.
+      picker.configure({ start: "2026-12-01", layout: "day", value: "2026-02-31T10:00" });
+    } catch (error) {
+      threw = error instanceof TypeError;
+    }
+    await new Promise(requestAnimationFrame);
+    return { threw, before, after: { start: picker.start, min: picker.min, layout: picker.layout } };
+  });
+
+  expect(result.threw).toBe(true);
+  expect(result.after).toEqual(result.before);
+});
+
+test("focus falls back to the roving slot when the targeted control disappears", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "3");
+    picker.days = [
+      { date: "2026-11-17", slots: [{ start: "09:00" }] },
+      { date: "2026-11-25", slots: [{ start: "10:00" }] },
+    ];
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    const slot = picker.querySelector('.sp-slot[data-value="2026-11-17T09:00"]');
+    slot.focus();
+    // Shift the window so the focused slot no longer exists and no pending
+    // focus target remains.
+    picker.start = "2026-11-25";
+    await new Promise(requestAnimationFrame);
+
+    const active = document.activeElement;
+    return {
+      inside: picker.contains(active),
+      isSlot: active instanceof HTMLElement ? active.classList.contains("sp-slot") : false,
+      value: active instanceof HTMLElement ? active.getAttribute("data-value") : "",
+    };
+  });
+
+  expect(result.inside).toBe(true);
+  expect(result.isSlot).toBe(true);
+  expect(result.value).toBe("2026-11-25T10:00");
 });

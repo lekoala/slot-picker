@@ -5,7 +5,6 @@ export default {
   nextAvailability: "Prossima disponibilità",
   showMore: "Mostra più disponibilità",
   showLess: "Mostra meno",
-  unavailable: "Non disponibile",
   loading: "Caricamento disponibilità",
   empty: "Nessuna disponibilità",
   rangeEmptyTitle: "Nessuna disponibilità in questo periodo",

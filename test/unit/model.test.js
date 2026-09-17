@@ -6,6 +6,7 @@ import {
   ensureVisible,
   hasDayContent,
   hasSlots,
+  isSlotValue,
   isValidRange,
   moveFocus,
   normalizeBreakpoints,
@@ -43,6 +44,17 @@ describe("slot model", () => {
 
   test("uses local datetime values", () => {
     expect(slotValue("2026-11-17", "13:35")).toBe("2026-11-17T13:35");
+  });
+
+  test("isSlotValue checks form and civil reality", () => {
+    expect(isSlotValue("2026-11-17T13:35")).toBe(true);
+    expect(isSlotValue("2026-02-28T00:00")).toBe(true);
+    // Impossible civil date: the shape alone is not enough.
+    expect(isSlotValue("2026-02-31T10:00")).toBe(false);
+    expect(isSlotValue("2026-11-17T24:00")).toBe(false);
+    expect(isSlotValue("2026-11-17T10:60")).toBe(false);
+    expect(isSlotValue("2026-11-17")).toBe(false);
+    expect(isSlotValue("")).toBe(false);
   });
 
   test("moves horizontally to nearest row in adjacent day", () => {

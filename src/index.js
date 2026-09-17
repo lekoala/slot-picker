@@ -8,6 +8,7 @@ export {
   focusableSlots,
   hasDayContent,
   hasSlots,
+  isSlotValue,
   isTimeValue,
   isValidRange,
   moveFocus,

@@ -71,6 +71,8 @@ await picker.goToNextAvailability(); // -> source.next({ after: picker.range.end
 
 Without `source.next`, `goToNextAvailability()` dispatches `nextrequest`
 (`{ after }`) and returns `null`; the consumer then calls `picker.goTo(date)`.
+When the source does answer, it resolves to the destination actually reached
+(clamped to `min`/`max`), never the raw source proposal.
 The source returns normalized day data. Backend query conventions and business
 metadata stay outside core.
 
@@ -100,9 +102,11 @@ picker.next();
 picker.configure({ min: "2026-11-17", max: "2027-03-31", dayCount: 7, responsive: true, homeDate: "2026-11-17" });
 ```
 
-`configure()` is transactional: one reload and one final event pair, never one
-per setting. Event order is stable: `rangechange`, then `daychange`, then any
-reload. Resizing and navigating change the range but never `value`.
+`configure()` is transactional: it validates every option before applying, so an
+invalid option throws and leaves the component unchanged. A valid batch applies
+as one pass: one reload and one final event pair, never one per setting. Event
+order is stable: `rangechange`, then `daychange`, then any reload. Resizing and
+navigating change the range but never `value`.
 
 Navigation chrome is a symmetric `previous`/`next` pair framing the projection.
 `home` is a persistent capability but not their mirror: it lives in an
@@ -202,7 +206,10 @@ re-render existing pickers, and no global `MutationObserver` is used.
 ```
 
 Dates are civil `YYYY-MM-DD`, times are `HH:mm`, and the selected value is
-`YYYY-MM-DDTHH:mm`. No timezone conversion is performed.
+`YYYY-MM-DDTHH:mm`. No timezone conversion is performed. The `value` property
+setter rejects an impossible civil date such as `2026-02-31T10:00`; a malformed
+`value` attribute is ignored and reads as empty, so imperfect markup never
+breaks the element upgrade.
 
 ## Events
 

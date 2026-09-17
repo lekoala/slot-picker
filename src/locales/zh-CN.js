@@ -5,7 +5,6 @@ export default {
   nextAvailability: "下一个可预约时间",
   showMore: "显示更多可预约时间",
   showLess: "收起",
-  unavailable: "不可预约",
   loading: "正在加载可预约时间",
   empty: "暂无可预约时间",
   rangeEmptyTitle: "该时间段暂无可预约时间",

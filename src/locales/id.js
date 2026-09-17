@@ -5,7 +5,6 @@ export default {
   nextAvailability: "Ketersediaan berikutnya",
   showMore: "Tampilkan lebih banyak ketersediaan",
   showLess: "Tampilkan lebih sedikit",
-  unavailable: "Tidak tersedia",
   loading: "Memuat ketersediaan",
   empty: "Tidak ada ketersediaan",
   rangeEmptyTitle: "Tidak ada ketersediaan pada periode ini",

@@ -5,7 +5,6 @@ export default {
   nextAvailability: "다음 예약 가능",
   showMore: "가능한 시간 더 보기",
   showLess: "간단히 보기",
-  unavailable: "예약 불가",
   loading: "가능한 시간을 불러오는 중",
   empty: "가능한 시간 없음",
   rangeEmptyTitle: "이 기간에는 예약 가능한 시간이 없습니다",

@@ -5,7 +5,6 @@ export default {
   nextAvailability: "次の空き",
   showMore: "空きをさらに表示",
   showLess: "表示を減らす",
-  unavailable: "予約不可",
   loading: "空き状況を読み込み中",
   empty: "空きがありません",
   rangeEmptyTitle: "この期間に空きがありません",

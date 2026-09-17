@@ -5,7 +5,6 @@ export default {
   nextAvailability: "التوفر التالي",
   showMore: "إظهار مزيد من التوفر",
   showLess: "إظهار أقل",
-  unavailable: "غير متاح",
   loading: "جارٍ تحميل التوفر",
   empty: "لا يوجد توفر",
   rangeEmptyTitle: "لا يوجد أي موعد متاح في هذه الفترة",

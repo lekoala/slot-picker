@@ -5,7 +5,6 @@ export default {
   nextAvailability: "Sonraki uygunluk",
   showMore: "Daha fazla uygunluk göster",
   showLess: "Daha az göster",
-  unavailable: "Uygun değil",
   loading: "Uygunluk yükleniyor",
   empty: "Uygun zaman yok",
   rangeEmptyTitle: "Bu dönemde uygun zaman yok",

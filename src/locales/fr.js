@@ -5,7 +5,6 @@ export default {
   nextAvailability: "Prochain créneau disponible",
   showMore: "Voir plus de disponibilités",
   showLess: "Voir moins",
-  unavailable: "Indisponible",
   loading: "Chargement des disponibilités",
   empty: "Aucune disponibilité",
   rangeEmptyTitle: "Aucun créneau disponible sur cette période",

@@ -5,7 +5,6 @@ export default {
   nextAvailability: "Ближайшая доступность",
   showMore: "Показать больше доступных слотов",
   showLess: "Показать меньше",
-  unavailable: "Недоступно",
   loading: "Загрузка доступности",
   empty: "Нет доступных слотов",
   rangeEmptyTitle: "На этот период нет доступных слотов",

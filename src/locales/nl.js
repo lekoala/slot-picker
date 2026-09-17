@@ -5,7 +5,6 @@ export default {
   nextAvailability: "Volgende beschikbaarheid",
   showMore: "Meer beschikbaarheid tonen",
   showLess: "Minder tonen",
-  unavailable: "Niet beschikbaar",
   loading: "Beschikbaarheid laden",
   empty: "Geen beschikbaarheid",
   rangeEmptyTitle: "Geen beschikbaarheid in deze periode",

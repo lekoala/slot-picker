@@ -21,9 +21,21 @@ export const RESPONSIVE_BREAKPOINTS = Object.freeze([
 /** @typedef {{label:string,description?:string,meta?:unknown}} DayNotice */
 /** @typedef {{date:string,slots:Slot[],notice?:DayNotice}} SlotDay */
 
+const SLOT_RE = /^(\d{4}-\d{2}-\d{2})T((?:[01]\d|2[0-3]):[0-5]\d)$/;
+
 /** @param {string} value */
 export function isTimeValue(value) {
   return TIME_RE.test(value);
+}
+
+/**
+ * Canonical slot value: a civil date and a time, no timezone.
+ * Rejects impossible dates such as 2026-02-31.
+ * @param {string} value
+ */
+export function isSlotValue(value) {
+  const match = SLOT_RE.exec(value);
+  return match !== null && isDateValue(match[1]) && isTimeValue(match[2]);
 }
 
 /** @param {string} date @param {string} time */

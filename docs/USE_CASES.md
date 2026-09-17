@@ -87,6 +87,8 @@ An application can set or clear `value`.
 Acceptance:
 
 - `value` is `YYYY-MM-DDTHH:mm` or empty;
+- an impossible civil date (for example `2026-02-31T10:00`) is rejected by the property setter;
+- a malformed `value` attribute is ignored and reads as empty, so imperfect markup never breaks the element upgrade;
 - setting `value` only changes visual selection;
 - programmatic assignment does not emit `slotactivate`;
 - selecting a disabled slot is impossible.
@@ -137,7 +139,8 @@ Acceptance:
 - `previous()`/`next()` move to the adjacent window of `visibleDayCount` days and never select;
 - `goTo(date)` brings `date` into the window and consults it, respecting the bounds;
 - `goHome()` returns to `homeDate`, a reference date that is never confused with `min`;
-- `goToNextAvailability()` asks the source (`source.next`) or falls back to a `nextrequest` event; it may skip several windows and is never merged with `next()`;
+- `goToNextAvailability()` asks the source (`source.next`) or falls back to a `nextrequest` event; it may skip several windows and is never merged with `next()`; it returns the destination actually reached (clamped to `min`/`max`), never the raw source proposal;
+- `configure()` validates all options before applying any: an invalid option throws and leaves the component unchanged;
 - navigation controls are a symmetric `previous`/`next` pair framing the projection; they are the only range-navigation chrome;
 - `goHome()` (opt-in via `home-date`) is a persistent capability but an auxiliary shortcut, kept outside the prev/next rail; it is offered only while `homeDate` is outside the visible range;
 - there is no "go to end" action;

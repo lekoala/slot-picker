@@ -6,6 +6,7 @@ import {
   collapsedDays,
   ensureVisible,
   hasDayContent,
+  isSlotValue,
   isValidRange,
   moveFocus,
   normalizeBreakpoints,
@@ -240,8 +241,14 @@ export class SlotPickerElement extends HTMLElement {
     else throw new TypeError("max must be YYYY-MM-DD");
   }
 
+  /**
+   * Canonical selection. A malformed attribute (markup is not guaranteed to be
+   * valid) reads as empty instead of breaking the upgrade; the property setter
+   * still rejects it explicitly.
+   */
   get value() {
-    return this.getAttribute("value") || "";
+    const value = this.getAttribute("value") || "";
+    return isSlotValue(value) ? value : "";
   }
 
   set value(value) {
@@ -249,8 +256,7 @@ export class SlotPickerElement extends HTMLElement {
       this.removeAttribute("value");
       return;
     }
-    const match = /^(\d{4}-\d{2}-\d{2})T((?:[01]\d|2[0-3]):[0-5]\d)$/.exec(value);
-    if (match && isDateValue(match[1])) this.setAttribute("value", value);
+    if (isSlotValue(value)) this.setAttribute("value", value);
     else throw new TypeError("value must be a valid YYYY-MM-DDTHH:mm or empty");
   }
 
@@ -421,8 +427,9 @@ export class SlotPickerElement extends HTMLElement {
     if (this.#sourceController.hasNext) {
       const date = await this.#sourceController.next({ after });
       if (date && isDateValue(date)) {
-        this.goTo(date);
-        return date;
+        // Return the destination actually reached: `goTo` clamps to bounds, so
+        // the source proposal may differ from the resolved active date.
+        return this.goTo(date) || null;
       }
       return null;
     }
@@ -435,6 +442,9 @@ export class SlotPickerElement extends HTMLElement {
    * @param {ConfigureOptions} [options]
    */
   configure(options = {}) {
+    // Validate every option before mutating anything: a rejected transaction
+    // must leave the component exactly as it was, not partially applied.
+    this.#validateConfigure(options);
     this.#mutate(() => {
       if (options.min !== undefined) this.min = options.min;
       if (options.max !== undefined) this.max = options.max;
@@ -451,6 +461,32 @@ export class SlotPickerElement extends HTMLElement {
     // An explicit start wins over the previous active-day anchor; only the
     // other options preserve the consulted day.
     this.#reconcile({ pinActive: options.start === undefined });
+  }
+
+  /**
+   * Mirror the option setters without touching state, so `configure()` can
+   * fail closed. Options that only coerce (dayCount, maxVisibleRows,
+   * responsive) need no check.
+   * @param {ConfigureOptions} options
+   */
+  #validateConfigure(options) {
+    if (options.min && !isDateValue(options.min)) throw new TypeError("min must be YYYY-MM-DD");
+    if (options.max && !isDateValue(options.max)) throw new TypeError("max must be YYYY-MM-DD");
+    if (options.start !== undefined && !isDateValue(options.start)) {
+      throw new TypeError("start must be YYYY-MM-DD");
+    }
+    if (options.layout !== undefined && options.layout !== "columns" && options.layout !== "day") {
+      throw new TypeError('layout must be "columns" or "day"');
+    }
+    if (options.value && !isSlotValue(options.value)) {
+      throw new TypeError("value must be a valid YYYY-MM-DDTHH:mm or empty");
+    }
+    if (options.homeDate && !isDateValue(options.homeDate)) {
+      throw new TypeError("homeDate must be YYYY-MM-DD or empty");
+    }
+    if (options.responsiveBreakpoints != null && !Array.isArray(options.responsiveBreakpoints)) {
+      throw new TypeError("responsiveBreakpoints must be an array or null");
+    }
   }
 
   async reload() {
@@ -621,8 +657,10 @@ export class SlotPickerElement extends HTMLElement {
   async #load() {
     const request = ++this.#loadRequest;
     if (!this.source || !this.visibleDayCount) {
-      // No source or an unusable range: never leave a stale loading flag behind.
+      // No source or an unusable range: return to a neutral state instead of
+      // leaving a stale loading flag or a stale error behind.
       this.#loading = false;
+      this.#error = null;
       this.#queueRender();
       return;
     }
@@ -690,6 +728,15 @@ export class SlotPickerElement extends HTMLElement {
       return index ? `.sp-notice[data-day-index="${CSS.escape(index)}"]` : "";
     }
     return "";
+  }
+
+  /**
+   * The previously focused control vanished (data or range change): fall back
+   * to the single roving slot, then to the consulted day control. No heuristic
+   * position, and focus is only restored when it was already inside.
+   */
+  #focusFallback() {
+    return this.querySelector('.sp-slot[tabindex="0"]') ?? this.querySelector('.sp-strip-day[tabindex="0"]');
   }
 
   #render() {
@@ -785,7 +832,7 @@ export class SlotPickerElement extends HTMLElement {
 
     const selector = pendingSelector || fallbackSelector;
     if (selector) {
-      const target = this.querySelector(selector);
+      const target = this.querySelector(selector) ?? this.#focusFallback();
       if (target instanceof HTMLElement) target.focus({ preventScroll: true });
     }
   }
