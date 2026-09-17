@@ -1,7 +1,19 @@
-import { addDays, compareDates, isDateValue, rangeEnd, todayValue, toUtcDate } from "./date.js";
-import { clampStart, moveFocus, normalizeDays, rangeDetail, slotValue, visibleDays } from "./model.js";
+import { addDays, compareDates, isDateValue, rangeEnd, todayValue } from "./date.js";
 import { resolveMessages } from "./messages.js";
+import {
+  clampStart,
+  collapsedDays,
+  moveFocus,
+  normalizeDays,
+  rangeDetail,
+  resolveActiveDate,
+  slotValue,
+  visibleDays,
+} from "./model.js";
 import { SlotSourceController } from "./source.js";
+import { renderColumns } from "./views/columns.js";
+import { renderDay } from "./views/day.js";
+import { escapeAttr, escapeHtml } from "./views/shared.js";
 
 const PREV_ICON =
   '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4 6.5 10l6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -9,6 +21,7 @@ const NEXT_ICON =
   '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7.5 4 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 /** @typedef {import("./model.js").SlotDay} SlotDay */
+/** @typedef {"up"|"down"|"left"|"right"|"home"|"end"} FocusDirection */
 
 /**
  * Inline appointment slot chooser.
@@ -17,28 +30,50 @@ const NEXT_ICON =
  * - dates: YYYY-MM-DD
  * - times: HH:mm
  * - value: YYYY-MM-DDTHH:mm
+ *
+ * State:
+ * - start/dayCount: visible civil range
+ * - activeDate: last day explicitly targeted (day click or slot activation)
+ * - focusedValue: keyboard target, never a selection
+ * - value: selected local slot value
  */
 export class SlotPickerElement extends HTMLElement {
-  static observedAttributes = ["start", "day-count", "min", "max", "value", "max-visible-rows", "expanded"];
+  static observedAttributes = [
+    "start",
+    "day-count",
+    "min",
+    "max",
+    "value",
+    "active-date",
+    "layout",
+    "max-visible-rows",
+    "expanded",
+  ];
 
   /** @type {SlotDay[]} */
   #days = [];
   #sourceController = new SlotSourceController();
   #messages = resolveMessages();
   #loading = false;
+  /** @type {unknown} */
   #error = null;
   #focusedValue = "";
   #renderQueued = false;
+  #initializing = false;
+  #pendingFocus = "";
 
   constructor() {
     super();
-    this.addEventListener("click", (event) => this.#onClick(event));
-    this.addEventListener("keydown", (event) => this.#onKeyDown(event));
+    this.addEventListener("click", /** @param {MouseEvent} event */ (event) => this.#onClick(event));
+    this.addEventListener("keydown", /** @param {KeyboardEvent} event */ (event) => this.#onKeyDown(event));
   }
 
   connectedCallback() {
-    if (!this.hasAttribute("start")) this.start = todayValue();
-    if (!this.hasAttribute("day-count")) this.dayCount = 5;
+    this.#initializing = true;
+    if (!this.hasAttribute("start")) this.setAttribute("start", todayValue());
+    if (!this.hasAttribute("day-count")) this.setAttribute("day-count", "5");
+    if (!this.hasAttribute("layout")) this.setAttribute("layout", "columns");
+    this.#initializing = false;
     this.#queueRender();
     this.#load();
   }
@@ -47,9 +82,15 @@ export class SlotPickerElement extends HTMLElement {
     this.#sourceController.abort();
   }
 
+  /**
+   * @param {string} name
+   * @param {string|null} oldValue
+   * @param {string|null} newValue
+   */
   attributeChangedCallback(name, oldValue, newValue) {
     if (oldValue === newValue) return;
     this.#queueRender();
+    if (this.#initializing) return;
     if (this.isConnected && ["start", "day-count", "min", "max"].includes(name)) this.#load();
   }
 
@@ -107,6 +148,28 @@ export class SlotPickerElement extends HTMLElement {
     } else {
       throw new TypeError("value must be YYYY-MM-DDTHH:mm or empty");
     }
+  }
+
+  get activeDate() {
+    const raw = this.getAttribute("active-date") || "";
+    const base = isDateValue(raw) ? raw : this.start;
+    return resolveActiveDate(this.start, this.dayCount, base);
+  }
+
+  set activeDate(value) {
+    if (!value) this.removeAttribute("active-date");
+    else if (isDateValue(value)) this.setAttribute("active-date", value);
+    else throw new TypeError("active-date must be YYYY-MM-DD or empty");
+  }
+
+  get layout() {
+    const value = this.getAttribute("layout") || "columns";
+    return value === "day" ? "day" : "columns";
+  }
+
+  set layout(value) {
+    if (value !== "columns" && value !== "day") throw new TypeError('layout must be "columns" or "day"');
+    this.setAttribute("layout", value);
   }
 
   get expanded() {
@@ -170,12 +233,29 @@ export class SlotPickerElement extends HTMLElement {
     await this.#load();
   }
 
+  /** @param {number} delta */
   #navigate(delta) {
+    const before = this.activeDate;
     const requested = addDays(this.start, delta);
     const next = clampStart(requested, this.min, this.max, this.dayCount);
     if (next === this.start) return;
     this.start = next;
     this.dispatchEvent(new CustomEvent("rangechange", { detail: this.range }));
+    const after = this.activeDate;
+    if (after !== before) {
+      this.dispatchEvent(new CustomEvent("daychange", { detail: { activeDate: after } }));
+    }
+  }
+
+  /** @param {string} date @param {boolean} emit */
+  #setActiveDate(date, emit = true) {
+    const resolved = resolveActiveDate(this.start, this.dayCount, date);
+    const before = this.activeDate;
+    if (resolved === before && this.getAttribute("active-date") === resolved) return;
+    this.setAttribute("active-date", resolved);
+    if (emit && resolved !== before) {
+      this.dispatchEvent(new CustomEvent("daychange", { detail: { activeDate: resolved } }));
+    }
   }
 
   async #load() {
@@ -189,7 +269,11 @@ export class SlotPickerElement extends HTMLElement {
     try {
       const result = await this.#sourceController.load(range);
       if (result === null) return;
-      const days = Array.isArray(result) ? result : result && typeof result === "object" && "days" in result ? result.days : [];
+      const days = Array.isArray(result)
+        ? result
+        : result && typeof result === "object" && "days" in result
+          ? result.days
+          : [];
       this.#days = normalizeDays(/** @type {SlotDay[]} */ (days));
       this.dispatchEvent(new CustomEvent("loadend", { detail: { ...range, days: this.days } }));
     } catch (error) {
@@ -211,53 +295,63 @@ export class SlotPickerElement extends HTMLElement {
     });
   }
 
+  /** @param {Element} element */
+  #focusSelector(element) {
+    if (element.classList.contains("sp-slot")) {
+      const value = element.getAttribute("data-value") || "";
+      return value ? `.sp-slot[data-value="${CSS.escape(value)}"]` : "";
+    }
+    if (element.classList.contains("sp-strip-day")) {
+      const date = element.getAttribute("data-date") || "";
+      return date ? `.sp-strip-day[data-date="${CSS.escape(date)}"]` : "";
+    }
+    if (element.classList.contains("sp-nav-prev")) return ".sp-nav-prev";
+    if (element.classList.contains("sp-nav-next")) return ".sp-nav-next";
+    if (element.classList.contains("sp-more-button")) return ".sp-more-button";
+    if (element.classList.contains("sp-notice")) {
+      const index = element.getAttribute("data-day-index") || "";
+      return index ? `.sp-notice[data-day-index="${CSS.escape(index)}"]` : "";
+    }
+    return "";
+  }
+
   #render() {
+    const focused = document.activeElement;
+    const fallbackSelector =
+      focused instanceof Element && this.contains(focused) ? this.#focusSelector(focused) : "";
+    const pendingSelector = this.#pendingFocus;
+    this.#pendingFocus = "";
+
     const days = visibleDays(this.#days, this.start, this.dayCount);
     const locale = this.lang || document.documentElement.lang || "en";
-    const formatterDay = new Intl.DateTimeFormat(locale, { weekday: "short" });
-    const formatterDate = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short" });
-    const maxRows = Math.max(0, ...days.map((day) => day.slots.length));
-    const visibleRows = this.expanded ? maxRows : Math.min(maxRows, this.maxVisibleRows);
-    const hasOverflow = maxRows > this.maxVisibleRows;
     const canPrevious = !this.min || compareDates(this.start, this.min) > 0;
     const canNext = !this.max || compareDates(rangeEnd(this.start, this.dayCount), this.max) < 0;
 
-    const firstSlot = days.flatMap((day) => day.slots.map((slot) => slotValue(day.date, slot.start)))[0] || "";
-    const activeFocus = this.#focusedValue || this.value || firstSlot;
-
-    const dayMarkup = days
-      .map((day, dayIndex) => {
-        const date = toUtcDate(day.date);
-        const weekday = formatterDay.format(date);
-        const displayDate = formatterDate.format(date);
-        const slots = day.slots.slice(0, visibleRows);
-
-        const slotMarkup = slots
-          .map((slot, slotIndex) => {
-            const value = slotValue(day.date, slot.start);
-            const selected = value === this.value;
-            const tabindex = value === activeFocus ? 0 : -1;
-            const description = slot.description ? ` aria-description="${escapeAttr(slot.description)}"` : "";
-            return `<button type="button" class="sp-slot" role="gridcell" data-day-index="${dayIndex}" data-slot-index="${slotIndex}" data-value="${value}" aria-selected="${selected}" tabindex="${tabindex}"${slot.disabled ? " disabled" : ""}${description}>${escapeHtml(slot.start)}</button>`;
-          })
-          .join("");
-
-        const empties = Array.from({ length: Math.max(0, visibleRows - slots.length) }, () => '<span class="sp-empty" aria-hidden="true">–</span>').join("");
-
-        const notice = day.notice
-          ? `<button type="button" class="sp-notice" data-day-index="${dayIndex}" aria-label="${escapeAttr(day.notice.description || day.notice.label)}"><span class="sp-notice-dot" aria-hidden="true"></span><span class="sp-visually-hidden">${escapeHtml(day.notice.label)}</span></button>`
-          : "";
-
-        return `<section class="sp-day" role="row" data-date="${day.date}">
-          <header class="sp-day-header">
-            <span class="sp-weekday">${escapeHtml(weekday)}</span>
-            <strong class="sp-date">${escapeHtml(displayDate)}</strong>
-            ${notice}
-          </header>
-          <div class="sp-slots" role="presentation">${slotMarkup}${empties}</div>
-        </section>`;
-      })
-      .join("");
+    let content;
+    let hasOverflow = false;
+    if (this.layout === "day") {
+      content = renderDay({
+        visible: days,
+        activeDate: this.activeDate,
+        today: todayValue(),
+        value: this.value,
+        focusedValue: this.#focusedValue,
+        messages: this.#messages,
+        locale,
+      }).html;
+    } else {
+      const rendered = renderColumns({
+        visible: days,
+        value: this.value,
+        focusedValue: this.#focusedValue,
+        maxVisibleRows: this.maxVisibleRows,
+        expanded: this.expanded,
+        messages: this.#messages,
+        locale,
+      });
+      content = rendered.html;
+      hasOverflow = rendered.hasOverflow;
+    }
 
     const status = this.#loading
       ? `<div class="sp-status" role="status">${escapeHtml(this.#messages.loading)}</div>`
@@ -265,11 +359,12 @@ export class SlotPickerElement extends HTMLElement {
         ? `<div class="sp-status sp-status-error" role="status">${escapeHtml(String(this.#error))}</div>`
         : "";
 
-    this.innerHTML = `<div class="sp-shell">
+    this.style.setProperty("--_sp-day-count", String(this.dayCount));
+    this.innerHTML = `<div class="sp-shell" data-layout="${this.layout}">
       <button type="button" class="sp-nav sp-nav-prev" aria-label="${escapeAttr(this.#messages.previous)}"${canPrevious ? "" : " disabled"}>${PREV_ICON}</button>
       <div class="sp-content">
         ${status}
-        <div class="sp-grid" role="grid" aria-label="Appointment availability">${dayMarkup}</div>
+        ${content}
         ${
           hasOverflow
             ? `<div class="sp-more"><button type="button" class="sp-more-button">${escapeHtml(this.expanded ? this.#messages.showLess : this.#messages.showMore)}</button></div>`
@@ -278,8 +373,15 @@ export class SlotPickerElement extends HTMLElement {
       </div>
       <button type="button" class="sp-nav sp-nav-next" aria-label="${escapeAttr(this.#messages.next)}"${canNext ? "" : " disabled"}>${NEXT_ICON}</button>
     </div>`;
+
+    const selector = pendingSelector || fallbackSelector;
+    if (selector) {
+      const target = this.querySelector(selector);
+      if (target instanceof HTMLElement) target.focus({ preventScroll: true });
+    }
   }
 
+  /** @param {MouseEvent} event */
   #onClick(event) {
     const target = /** @type {Element|null} */ (event.target instanceof Element ? event.target : null);
     if (!target) return;
@@ -293,11 +395,22 @@ export class SlotPickerElement extends HTMLElement {
       return;
     }
 
+    const stripDay = target.closest(".sp-strip-day");
+    if (stripDay instanceof HTMLButtonElement) {
+      const date = stripDay.getAttribute("data-date") || "";
+      if (isDateValue(date)) {
+        this.#pendingFocus = `.sp-strip-day[data-date="${CSS.escape(date)}"]`;
+        this.#setActiveDate(date);
+      }
+      return;
+    }
+
     const notice = target.closest(".sp-notice");
     if (notice instanceof HTMLElement) {
-      const dayIndex = Number(notice.dataset.dayIndex);
+      const dayIndex = Number(notice.getAttribute("data-day-index"));
       const day = visibleDays(this.#days, this.start, this.dayCount)[dayIndex];
-      if (day?.notice) this.dispatchEvent(new CustomEvent("noticeactivate", { detail: { day, notice: day.notice } }));
+      if (day?.notice)
+        this.dispatchEvent(new CustomEvent("noticeactivate", { detail: { day, notice: day.notice } }));
       return;
     }
 
@@ -305,8 +418,14 @@ export class SlotPickerElement extends HTMLElement {
     if (slotButton instanceof HTMLButtonElement) this.#activateSlot(slotButton);
   }
 
+  /** @param {KeyboardEvent} event */
   #onKeyDown(event) {
-    if (!(event.target instanceof HTMLButtonElement) || !event.target.classList.contains("sp-slot")) return;
+    if (!(event.target instanceof HTMLButtonElement)) return;
+    const button = event.target;
+    if (button.classList.contains("sp-strip-day")) return this.#onStripKeyDown(event);
+    if (!button.classList.contains("sp-slot")) return;
+
+    /** @type {Record<string,FocusDirection>} */
     const map = {
       ArrowUp: "up",
       ArrowDown: "down",
@@ -319,21 +438,102 @@ export class SlotPickerElement extends HTMLElement {
     if (!direction) return;
     event.preventDefault();
 
-    const days = visibleDays(this.#days, this.start, this.dayCount);
+    const allDays = visibleDays(this.#days, this.start, this.dayCount);
+    if (this.layout === "day") {
+      this.#onPanelKeyDown(event, allDays, direction);
+      return;
+    }
+
+    // Move focus within the rendered rows only, otherwise the target button
+    // does not exist in the DOM and focus would be lost.
+    const { days } = collapsedDays(allDays, this.maxVisibleRows, this.expanded);
     const current = {
-      dayIndex: Number(event.target.dataset.dayIndex),
-      slotIndex: Number(event.target.dataset.slotIndex),
+      dayIndex: Number(button.dataset.dayIndex),
+      slotIndex: Number(button.dataset.slotIndex),
     };
     const next = moveFocus(days, current, direction);
     const nextDay = days[next.dayIndex];
     const nextSlot = nextDay?.slots[next.slotIndex];
-    if (!nextSlot) return;
+    if (!nextSlot || nextSlot.disabled) return;
 
     const value = slotValue(nextDay.date, nextSlot.start);
     this.#focusedValue = value;
+    this.#pendingFocus = `.sp-slot[data-value="${CSS.escape(value)}"]`;
     this.#render();
-    const button = this.querySelector(`.sp-slot[data-value="${CSS.escape(value)}"]`);
-    if (button instanceof HTMLButtonElement) button.focus();
+  }
+
+  /** @param {KeyboardEvent} event */
+  #onStripKeyDown(event) {
+    /** @type {Record<string,number|string>} */
+    const map = { ArrowLeft: -1, ArrowRight: 1, Home: "home", End: "end" };
+    const action = map[event.key];
+    if (action === undefined) return;
+    event.preventDefault();
+
+    const days = visibleDays(this.#days, this.start, this.dayCount);
+    const currentIndex = Math.max(
+      0,
+      days.findIndex((day) => day.date === this.activeDate),
+    );
+    let nextIndex = currentIndex;
+    if (action === "home") nextIndex = 0;
+    else if (action === "end") nextIndex = days.length - 1;
+    else if (typeof action === "number")
+      nextIndex = Math.max(0, Math.min(days.length - 1, currentIndex + action));
+
+    const next = days[nextIndex];
+    if (!next || next.date === this.activeDate) {
+      const same = this.querySelector(`.sp-strip-day[data-date="${CSS.escape(this.activeDate)}"]`);
+      if (same instanceof HTMLButtonElement) same.focus();
+      return;
+    }
+    this.#pendingFocus = `.sp-strip-day[data-date="${CSS.escape(next.date)}"]`;
+    this.#setActiveDate(next.date);
+  }
+
+  /**
+   * @param {KeyboardEvent} event
+   * @param {SlotDay[]} days
+   * @param {string} direction
+   */
+  #onPanelKeyDown(event, days, direction) {
+    if (!(event.target instanceof HTMLButtonElement)) return;
+    const button = event.target;
+    const activeIndex = Math.max(
+      0,
+      days.findIndex((day) => day.date === this.activeDate),
+    );
+    const active = days[activeIndex];
+    if (!active) return;
+    const enabled = active.slots
+      .map((slot, slotIndex) => ({ slot, slotIndex }))
+      .filter(({ slot }) => !slot.disabled);
+    if (!enabled.length) return;
+
+    const currentSlotIndex = Number(button.dataset.slotIndex);
+    let position = enabled.findIndex(({ slotIndex }) => slotIndex === currentSlotIndex);
+    if (position < 0) {
+      const currentValue = button.getAttribute("data-value") || "";
+      position = Math.max(
+        0,
+        enabled.findIndex(
+          ({ slot }) =>
+            slotValue(active.date, slot.start) === (this.#focusedValue || this.value || currentValue),
+        ),
+      );
+    }
+    let nextPosition = position;
+    if (direction === "home") nextPosition = 0;
+    else if (direction === "end") nextPosition = enabled.length - 1;
+    else if (direction === "left" || direction === "up") nextPosition = Math.max(0, position - 1);
+    else nextPosition = Math.min(enabled.length - 1, position + 1);
+
+    const next = enabled[nextPosition];
+    if (!next) return;
+    const value = slotValue(active.date, next.slot.start);
+    this.#focusedValue = value;
+    this.#pendingFocus = `.sp-slot[data-value="${CSS.escape(value)}"]`;
+    this.#render();
   }
 
   /** @param {HTMLButtonElement} button */
@@ -346,18 +546,12 @@ export class SlotPickerElement extends HTMLElement {
     if (!day || !slot || slot.disabled) return;
 
     const value = slotValue(day.date, slot.start);
+    this.#pendingFocus = `.sp-slot[data-value="${CSS.escape(value)}"]`;
+    // The consulted day follows the last explicitly targeted slot,
+    // so switching projections keeps showing the selected day.
+    this.#setActiveDate(day.date);
     this.value = value;
     this.#focusedValue = value;
     this.dispatchEvent(new CustomEvent("slotactivate", { detail: { value, day, slot } }));
   }
-}
-
-/** @param {string} value */
-function escapeHtml(value) {
-  return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char] || char);
-}
-
-/** @param {string} value */
-function escapeAttr(value) {
-  return escapeHtml(value);
 }

@@ -96,6 +96,24 @@ Acceptance:
 - the application owns post-selection booking behavior;
 - replacing the legacy backend does not require changing the picker.
 
+## U9 — Day projection of the same model
+
+The same selection model can be projected as a day strip plus the slots of one consulted day.
+
+Acceptance:
+
+- `layout` is `columns` (default) or `day`; the consumer chooses it explicitly;
+- there is no automatic `columns` to `day` breakpoint on viewport size;
+- `activeDate` is the last day explicitly targeted by the user (day click or slot activation);
+- `activeDate` resolution is civil-only: absent maps to `start`, before-range maps to `start`, after-range maps to `end`; loaded slots never influence it;
+- activating a slot sets `activeDate` to that slot's day before dispatching `slotactivate`;
+- changing `layout` preserves `activeDate` and `value`;
+- the active day uses `aria-pressed`, never `aria-current="date"`;
+- today remains independently discoverable from the consulted day;
+- empty days render a real DOM empty state driven by `messages.empty`, never CSS-generated text;
+- keyboard offers two comprehensible tab stops (day strip, then day slots) with roving tabindex in each zone;
+- Left/Right/Home/End on the strip change `activeDate` without selecting a slot.
+
 ## Not a use case for this package
 
 Keep these outside the component:

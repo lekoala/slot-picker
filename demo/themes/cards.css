@@ -1,0 +1,25 @@
+/* Cards theme — same columns DOM rendered as cards
+ * with a prominent empty state. */
+slot-picker[data-theme="cards"] {
+  --sp-day-gap: 1rem;
+  --sp-gap: 0.6rem;
+  --sp-radius: 1rem;
+  --sp-card-bg: color-mix(in srgb, var(--sp-fg) 4%, var(--sp-bg));
+  --sp-slot-block-size: 2.75rem;
+}
+
+slot-picker[data-theme="cards"] .sp-day {
+  background: var(--sp-card-bg);
+  border-radius: var(--sp-radius);
+  padding: 1rem 0.75rem 1.25rem;
+}
+
+slot-picker[data-theme="cards"] .sp-slot {
+  background: var(--sp-bg);
+  border: 1px solid var(--sp-border);
+}
+
+slot-picker[data-theme="cards"] .sp-day-empty {
+  min-block-size: 8rem;
+  font-style: italic;
+}

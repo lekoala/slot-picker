@@ -6,9 +6,12 @@ const DEFAULT_MESSAGES = {
   unavailable: "Unavailable",
   loading: "Loading availability",
   empty: "No availability",
+  oneSlot: "1 slot",
+  manySlots: "{n} slots",
+  days: "Days",
 };
 
-/** @param {Partial<typeof DEFAULT_MESSAGES>|null|undefined} messages */
+/** @param {Partial<typeof DEFAULT_MESSAGES>|null|undefined} [messages] */
 export function resolveMessages(messages) {
   return { ...DEFAULT_MESSAGES, ...(messages ?? {}) };
 }

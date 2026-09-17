@@ -11,10 +11,11 @@ It deliberately sits between `@lekoala/date-picker` and `@lekoala/calendar`:
 ## Basic usage
 
 ```html
-<link rel="stylesheet" href="./src/slot-picker.css">
-<script type="module" src="./src/define.js"></script>
+<link rel="stylesheet" href="./dist/slot-picker.css">
+<script src="./dist/slot-picker.js"></script>
 
 <slot-picker id="slots" start="2026-11-17" day-count="5"></slot-picker>
+<slot-picker id="day" start="2026-11-17" day-count="5" layout="day"></slot-picker>
 ```
 
 ```js
@@ -82,8 +83,21 @@ Dates are civil `YYYY-MM-DD`, times are `HH:mm`, and the selected value is
 ## Events
 
 - `rangechange` — the visible civil range changed.
-- `slotactivate` — the user explicitly chose a slot.
+- `daychange` — the consulted day (`activeDate`) changed; never selects a slot.
+- `slotactivate` — the user explicitly chose a slot (sets `activeDate` first).
 - `noticeactivate` — the user activated a day notice.
 - `loadstart` / `loadend` / `loaderror` — optional remote-source lifecycle.
 
 See `docs/USE_CASES.md` for the product contract.
+
+## Demo
+
+The demo page points at the built artifacts, so no web server is required:
+
+```bash
+bun run build
+```
+
+Then open `demo/index.html` directly, or serve it with `bun run dev`.
+It shows both `columns` and `day` projections, wide and in narrow
+phone-like containers.

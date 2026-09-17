@@ -12,21 +12,24 @@
           "tagName": "slot-picker",
           "description": "Inline appointment slot chooser.",
           "attributes": [
-            {"name": "start", "type": {"text": "string"}},
-            {"name": "day-count", "type": {"text": "number"}},
-            {"name": "min", "type": {"text": "string"}},
-            {"name": "max", "type": {"text": "string"}},
-            {"name": "value", "type": {"text": "string"}},
-            {"name": "max-visible-rows", "type": {"text": "number"}},
-            {"name": "expanded", "type": {"text": "boolean"}}
+            { "name": "start", "type": { "text": "string" } },
+            { "name": "day-count", "type": { "text": "number" } },
+            { "name": "min", "type": { "text": "string" } },
+            { "name": "max", "type": { "text": "string" } },
+            { "name": "value", "type": { "text": "string" } },
+            { "name": "active-date", "type": { "text": "string" } },
+            { "name": "layout", "type": { "text": "string" } },
+            { "name": "max-visible-rows", "type": { "text": "number" } },
+            { "name": "expanded", "type": { "text": "boolean" } }
           ],
           "events": [
-            {"name": "rangechange"},
-            {"name": "slotactivate"},
-            {"name": "noticeactivate"},
-            {"name": "loadstart"},
-            {"name": "loadend"},
-            {"name": "loaderror"}
+            { "name": "rangechange" },
+            { "name": "daychange" },
+            { "name": "slotactivate" },
+            { "name": "noticeactivate" },
+            { "name": "loadstart" },
+            { "name": "loadend" },
+            { "name": "loaderror" }
           ]
         }
       ]

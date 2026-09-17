@@ -13,8 +13,11 @@ const types = new Map([
 
 createServer((request, response) => {
   const url = new URL(request.url || "/", `http://${request.headers.host}`);
-  const relative = normalize(decodeURIComponent(url.pathname)).replace(/^(\.\.[/\\])+/, "");
-  let path = join(root, relative === "/" ? "demo/index.html" : relative);
+  // Compare the raw pathname before normalize(): on Windows normalize("/")
+  // returns "\\", which never equals "/" and breaks the root route.
+  const pathname = decodeURIComponent(url.pathname);
+  const relative = normalize(pathname).replace(/^(\.\.[/\\])+/, "");
+  let path = join(root, pathname === "/" ? "demo/index.html" : relative);
   if (existsSync(path) && statSync(path).isDirectory()) path = join(path, "index.html");
 
   if (!existsSync(path)) {

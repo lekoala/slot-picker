@@ -1,0 +1,24 @@
+/* Outlined theme — airy columns with outlined slots,
+ * empty days visually quiet. */
+slot-picker[data-theme="outlined"] {
+  --sp-day-gap: 1.5rem;
+  --sp-gap: 0.6rem;
+  --sp-radius: 0.35rem;
+  --sp-slot-block-size: 2.5rem;
+}
+
+slot-picker[data-theme="outlined"] .sp-slot {
+  background: var(--sp-bg);
+  border: 1px solid var(--sp-border);
+}
+
+slot-picker[data-theme="outlined"] .sp-slot[aria-selected="true"] {
+  border: 2px solid var(--sp-accent);
+  background: var(--sp-bg);
+  color: var(--sp-fg);
+}
+
+slot-picker[data-theme="outlined"] .sp-day-empty {
+  color: transparent;
+  user-select: none;
+}

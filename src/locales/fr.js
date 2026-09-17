@@ -6,4 +6,7 @@ export default {
   unavailable: "Indisponible",
   loading: "Chargement des disponibilités",
   empty: "Aucune disponibilité",
+  oneSlot: "1 créneau",
+  manySlots: "{n} créneaux",
+  days: "Jours",
 };

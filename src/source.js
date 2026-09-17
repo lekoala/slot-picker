@@ -2,7 +2,9 @@
 /** @typedef {(context:SourceContext) => Promise<unknown>|unknown} SlotSource */
 
 export class SlotSourceController {
+  /** @type {SlotSource|null} */
   #source = null;
+  /** @type {AbortController|null} */
   #controller = null;
   #request = 0;
 

@@ -1,0 +1,14 @@
+/* Compact theme — dense columns projection.
+ * Empty days stay discreet but present in the DOM. */
+slot-picker[data-theme="compact"] {
+  --sp-day-gap: 0.5rem;
+  --sp-gap: 0.4rem;
+  --sp-radius: 0.35rem;
+  --sp-slot-block-size: 2.25rem;
+}
+
+slot-picker[data-theme="compact"] .sp-day-empty {
+  min-block-size: var(--sp-slot-block-size);
+  font-size: 0.8rem;
+  opacity: 0.75;
+}

@@ -5,11 +5,7 @@ export function isDateValue(value) {
   if (!DATE_RE.test(value)) return false;
   const [year, month, day] = value.split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
-  return (
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day
-  );
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
 }
 
 /** @param {string} value */
@@ -35,7 +31,11 @@ export function compareDates(a, b) {
   return a.localeCompare(b);
 }
 
-/** Inclusive visible civil range. */
+/**
+ * Inclusive visible civil range.
+ * @param {string} start
+ * @param {number} dayCount
+ */
 export function rangeEnd(start, dayCount) {
   return addDays(start, Math.max(1, dayCount) - 1);
 }
