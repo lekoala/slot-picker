@@ -61,11 +61,13 @@ test("empty days render a real DOM empty state", async ({ page }) => {
   await page.goto("/demo/index.html");
 
   const columns = page.locator("#picker-columns");
-  await expect(columns.locator('.sp-day[data-date="2026-11-21"] .sp-day-empty')).toHaveText(/Aucune/);
+  await expect(columns.locator('.sp-day[data-date="2026-11-21"] .sp-day-empty')).toHaveText(
+    /No availability/,
+  );
 
   const day = page.locator("#picker-day");
   await day.locator('.sp-strip-day[data-date="2026-11-21"]').click();
-  await expect(day.locator(".sp-panel .sp-day-empty")).toHaveText(/Aucune/);
+  await expect(day.locator(".sp-panel .sp-day-empty")).toHaveText(/No availability/);
 });
 
 test("narrow containers render both projections", async ({ page }) => {
@@ -696,7 +698,7 @@ test("activating the notice control dispatches noticeactivate with its anchor", 
     };
   });
 
-  expect(result.label).toBe("Indisponibilité exceptionnelle");
+  expect(result.label).toBe("Exceptionally unavailable");
   expect(result.anchorIsControl).toBe(true);
   expect(result.value).toBe(null);
 });
@@ -1005,8 +1007,8 @@ test("demo opens a basic popover anchored on noticeactivate", async ({ page }) =
 
   const popover = page.locator("#notice-popover");
   await expect(popover).toBeVisible();
-  await expect(page.locator("#notice-popover-title")).toHaveText("Indisponibilité exceptionnelle");
-  await expect(page.locator("#notice-popover-body")).toContainText("praticien");
+  await expect(page.locator("#notice-popover-title")).toHaveText("Exceptionally unavailable");
+  await expect(page.locator("#notice-popover-body")).toContainText("practitioner");
 
   const anchored = await page.evaluate(() => {
     const anchor = document
@@ -1431,7 +1433,7 @@ test("the demo renders a theme-owned icon next to an instant slot", async ({ pag
   expect(result.found).toBe(true);
   expect(result.icon).toContain("⚡");
   // The glyph is decorative: the meaning stays in the accessible description.
-  expect(result.description).toBe("Réservation immédiate possible");
+  expect(result.description).toBe("Immediate booking available");
 });
 
 test("collapsed columns keep a stable footprint across sparse and empty ranges", async ({ page }) => {

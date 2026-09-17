@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -80,12 +80,12 @@
 </head>
 <body>
   <h1>Slot picker</h1>
-  <p class="build-warning" id="build-warning">Le composant n'est pas chargé. Lancez <code>bun run build</code>, puis rechargez cette page.</p>
+  <p class="build-warning" id="build-warning">The component did not load. Run <code>bun run build</code>, then reload this page.</p>
   <p id="output" aria-live="polite"></p>
   <div class="row">
-    <label for="theme">Thème columns</label>
+    <label for="theme">Columns theme</label>
     <select id="theme">
-      <option value="">Défaut</option>
+      <option value="">Default</option>
       <option value="compact">compact</option>
       <option value="cards">cards</option>
       <option value="outlined">outlined</option>
@@ -95,13 +95,13 @@
     <h2>Columns</h2>
     <p class="tone-legend">
       <span><i class="swatch-default"></i> Standard</span>
-      <span><i class="swatch-video"></i> Vidéo <code>tone="video"</code></span>
-      <span><i class="swatch-urgent"></i> Urgence <code>tone="urgent"</code></span>
-      <span><i class="swatch-instant"></i> RDV instantané <code>tone="instant"</code></span>
+      <span><i class="swatch-video"></i> Video <code>tone="video"</code></span>
+      <span><i class="swatch-urgent"></i> Urgent <code>tone="urgent"</code></span>
+      <span><i class="swatch-instant"></i> Instant <code>tone="instant"</code></span>
     </p>
     <p>
-      <code>tone</code> reste neutre : le composant ne connaît aucune de ces valeurs,
-      il les surface en <code>data-tone</code> et la page mappe <code>--sp-slot-*</code>.
+      <code>tone</code> stays neutral: the component does not know any of these values,
+      it surfaces them as <code>data-tone</code> and the page maps <code>--sp-slot-*</code>.
     </p>
     <slot-picker id="picker-columns" start="2026-11-17" day-count="5" max-visible-rows="5"></slot-picker>
   </div>
@@ -110,39 +110,39 @@
     <slot-picker id="picker-day" start="2026-11-17" day-count="5" layout="day"></slot-picker>
   </div>
   <div class="card">
-    <h2>Conteneurs étroits</h2>
+    <h2>Narrow containers</h2>
     <div class="compare">
       <div class="phone">
-        <h3>Columns · 3 jours</h3>
+        <h3>Columns · 3 days</h3>
         <slot-picker id="picker-columns-narrow" start="2026-11-17" day-count="3" max-visible-rows="5"></slot-picker>
       </div>
       <div class="phone">
-        <h3>Day · 3 jours</h3>
+        <h3>Day · 3 days</h3>
         <slot-picker id="picker-day-narrow" start="2026-11-17" day-count="3" layout="day"></slot-picker>
       </div>
     </div>
   </div>
   <div class="card">
-    <h2>Navigation bornée / responsive</h2>
+    <h2>Bounded / responsive navigation</h2>
     <p>
-      <code>day-count="7"</code> est une intention ; la capacité réelle
-      (<code>visibleDayCount</code>) dépend de <code>min</code>/<code>max</code> et de la largeur du composant.
+      <code>day-count="7"</code> is an intention; the actual capacity
+      (<code>visibleDayCount</code>) depends on <code>min</code>/<code>max</code> and on the component's width.
     </p>
     <div id="responsive-host" class="phone" style="inline-size: 700px; max-inline-size: 100%">
       <slot-picker id="picker-responsive" start="2026-11-17" day-count="7" responsive home-date="2026-11-17" next-availability min="2026-11-17" max="2026-12-15"></slot-picker>
     </div>
     <div class="row">
-      <button id="responsive-narrow" type="button">Réduire à 360px</button>
-      <button id="responsive-wide" type="button">Élargir à 700px</button>
+      <button id="responsive-narrow" type="button">Shrink to 360px</button>
+      <button id="responsive-wide" type="button">Widen to 700px</button>
       <output id="responsive-output"></output>
     </div>
   </div>
   <div class="card">
-    <h2>Plage entièrement vide</h2>
+    <h2>Fully empty range</h2>
     <slot-picker id="picker-empty" start="2026-11-17" day-count="5" layout="day"></slot-picker>
   </div>
   <div class="card">
-    <h2>Aucun créneau mais une notice</h2>
+    <h2>No slots but a notice</h2>
     <div class="row">
       <label for="notice-display">notice-display</label>
       <select id="notice-display">
@@ -157,10 +157,10 @@
   <div class="card">
     <h2>Messages / locale</h2>
     <div class="row">
-      <label for="locale">Langue</label>
+      <label for="locale">Language</label>
       <select id="locale">
-        <option value="fr" selected>fr</option>
-        <option value="en">en</option>
+        <option value="en" selected>en</option>
+        <option value="fr">fr</option>
         <option value="ar">ar (RTL)</option>
         <option value="de">de</option>
         <option value="es">es</option>
@@ -180,23 +180,6 @@
       document.querySelector("#build-warning").style.display = "block";
     }
 
-    const fr = {
-      previous: "Jours précédents",
-      next: "Jours suivants",
-      home: "Retour au début",
-      nextAvailability: "Prochain créneau disponible",
-      showMore: "Voir plus de disponibilités",
-      showLess: "Voir moins",
-      loading: "Chargement des disponibilités",
-      empty: "Aucune disponibilité",
-      rangeEmptyTitle: "Aucun créneau disponible sur cette période",
-      rangeEmptyDescription: "Du {start} au {end}",
-      rangeEmptyNext: "Voir la période suivante",
-      oneSlot: "1 créneau",
-      manySlots: "{n} créneaux",
-      days: "Jours"
-    };
-
     // `tone` is presentation-only: the page chooses the words and the colors.
     const days = [
       {
@@ -204,7 +187,7 @@
         slots: [
           { start: "13:35", tone: "video" },
           { start: "19:00", tone: "urgent" },
-          { start: "21:00", tone: "instant", description: "Réservation immédiate possible" }
+          { start: "21:00", tone: "instant", description: "Immediate booking available" }
         ]
       },
       {
@@ -225,7 +208,7 @@
       {
         date: "2026-11-19",
         slots: [
-          { start: "09:15", tone: "instant", description: "Réservation immédiate possible" },
+          { start: "09:15", tone: "instant", description: "Immediate booking available" },
           { start: "11:35", tone: "video" },
           { start: "12:20" },
           { start: "14:10", tone: "urgent" },
@@ -249,8 +232,8 @@
         date: "2026-11-21",
         slots: [],
         notice: {
-          label: "Indisponibilité exceptionnelle",
-          description: "Le praticien est exceptionnellement indisponible ce jour. Merci de votre compréhension."
+          label: "Exceptionally unavailable",
+          description: "The practitioner is exceptionally unavailable that day. Thank you for your understanding."
         }
       }
     ];
@@ -266,8 +249,8 @@
         date: "2026-11-18",
         slots: [],
         notice: {
-          label: "Indisponibilité exceptionnelle",
-          description: "Le praticien est exceptionnellement indisponible ce jour."
+          label: "Exceptionally unavailable",
+          description: "The practitioner is exceptionally unavailable that day."
         }
       },
       { date: "2026-11-19", slots: [] },
@@ -282,12 +265,10 @@
       document.querySelector("#picker-day-narrow")
     ];
     pickers.forEach((picker) => {
-      picker.messages = fr;
       picker.days = days;
     });
 
     const responsivePicker = document.querySelector("#picker-responsive");
-    responsivePicker.messages = fr;
     responsivePicker.days = days;
 
     const responsiveHost = document.querySelector("#responsive-host");
@@ -309,11 +290,9 @@
     });
 
     const emptyPicker = document.querySelector("#picker-empty");
-    emptyPicker.messages = fr;
     emptyPicker.days = emptyDays;
 
     const noticePicker = document.querySelector("#picker-notice");
-    noticePicker.messages = fr;
     noticePicker.days = noticeDays;
     const noticeSelect = document.querySelector("#notice-display");
     const noticeOutput = document.querySelector("#notice-output");
@@ -343,10 +322,10 @@
       try {
         const pack = (await localePacks[code]()).default;
         localePicker.messages = pack;
-        localeOutput.textContent = "pack importé";
+        localeOutput.textContent = "pack imported";
       } catch {
-        localePicker.messages = fr;
-        localeOutput.textContent = "fallback fr (serveur requis)";
+        localePicker.messages = null;
+        localeOutput.textContent = "fallback en (server required)";
       }
     }
     localeSelect.addEventListener("change", () => {
