@@ -228,6 +228,19 @@ slot-picker[home-date] .sp-shortcuts {
   box-sizing: border-box;
   border-radius: var(--sp-radius);
   font: inherit;
+  /* A grid item defaults to `min-width: auto`, i.e. its min-content; that would
+     let a wide slot (a theme icon next to the time) push the bounded day column.
+     Clamp the button to its track instead; the content stays centered. */
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+/* Time wrapper: inline-flex so a theme can append an in-flow icon (`::after`)
+   that stays adjacent to the time and vertically centered. */
+.sp-slot-time {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .sp-slot {

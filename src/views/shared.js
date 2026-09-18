@@ -60,7 +60,9 @@ export function slotButton({ date, slot, dayIndex, slotIndex, selected, tabbed }
   const disabled = slot.disabled ? ' disabled aria-disabled="true"' : "";
   // Neutral presentation hook: a theme maps tones to color, the core does not.
   const tone = slot.tone ? ` data-tone="${escapeAttr(slot.tone)}"` : "";
-  return `<button type="button" role="option" class="sp-slot" data-day-index="${dayIndex}" data-slot-index="${slotIndex}" data-value="${escapeAttr(value)}"${tone} aria-selected="${selected ? "true" : "false"}" tabindex="${tabbed ? 0 : -1}"${disabled}${description}>${escapeHtml(slot.start)}</button>`;
+  // The time sits in its own inline-flex wrapper so a theme can append an icon
+  // that stays in flow next to it without leaking width into the day column.
+  return `<button type="button" role="option" class="sp-slot" data-day-index="${dayIndex}" data-slot-index="${slotIndex}" data-value="${escapeAttr(value)}"${tone} aria-selected="${selected ? "true" : "false"}" tabindex="${tabbed ? 0 : -1}"${disabled}${description}><span class="sp-slot-time">${escapeHtml(slot.start)}</span></button>`;
 }
 
 /**

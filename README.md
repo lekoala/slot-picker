@@ -302,7 +302,7 @@ picker.days = [{ date: "2026-11-17", slots: [{ start: "13:35", tone: "video" }] 
 
 ```html
 <!-- rendered -->
-<button type="button" role="option" class="sp-slot" data-tone="video" ...>13:35</button>
+<button type="button" role="option" class="sp-slot" data-tone="video" ...><span class="sp-slot-time">13:35</span></button>
 ```
 
 Map tones to color with the dedicated slot tokens, so a tone never touches the
@@ -318,21 +318,17 @@ slot-picker .sp-slot[data-tone="video"] {
 The slot surface is `--sp-slot-bg`, `--sp-slot-fg`, `--sp-slot-border`,
 `--sp-slot-hover-bg`, `--sp-slot-selected-bg`, `--sp-slot-selected-fg`.
 
-An icon next to the time is theme-owned too. Make it an absolutely positioned
-badge: an in-flow `::after` (plus a gap) raises the slot's `min-content` and
-widens the whole day column, while a narrow column leaves no room beside the
-centered time.
+An icon next to the time is theme-owned too. The time lives in a
+`.sp-slot-time` inline-flex wrapper, so append the glyph to that wrapper with a
+`::after` and a logical margin: it stays in flow, thus really adjacent to the
+time, and readjusts in RTL. The slot is width-clamped (`min-inline-size: 0;
+max-inline-size: 100%`), so the icon never widens the day column.
 
 ```css
-slot-picker .sp-slot[data-tone="instant"] {
-  position: relative;
-}
-slot-picker .sp-slot[data-tone="instant"]::after {
+slot-picker .sp-slot[data-tone="instant"] .sp-slot-time::after {
   content: "⚡";
-  position: absolute;
-  inset-block-start: 0.2rem;
-  inset-inline-end: 0.25rem;
-  font-size: 0.6em;
+  margin-inline-start: 0.35rem;
+  font-size: 0.85em;
   line-height: 1;
 }
 ```

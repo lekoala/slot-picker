@@ -1454,15 +1454,22 @@ test("the demo renders a theme-owned icon next to an instant slot", async ({ pag
 
   const result = await page.evaluate(() => {
     const slot = document.querySelector('#picker-columns .sp-slot[data-tone="instant"]');
-    if (!slot) return { found: false, icon: "", description: "" };
+    if (!slot) return { found: false, icon: "", description: "", time: "", inWrapper: false };
+    const time = slot.querySelector(".sp-slot-time");
     return {
       found: true,
-      icon: getComputedStyle(slot, "::after").content,
+      // The glyph belongs to the time wrapper, so it stays in flow next to the
+      // time instead of being an out-of-flow badge pinned to the slot corner.
+      icon: time ? getComputedStyle(time, "::after").content : "",
+      time: time ? time.textContent.trim() : "",
+      inWrapper: Boolean(time),
       description: slot.getAttribute("aria-description"),
     };
   });
 
   expect(result.found).toBe(true);
+  expect(result.inWrapper).toBe(true);
+  expect(result.time).not.toBe("");
   expect(result.icon).toContain("⚡");
   // The glyph is decorative: the meaning stays in the accessible description.
   expect(result.description).toBe("Immediate booking available");

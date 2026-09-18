@@ -369,7 +369,7 @@
     const description = slot.description ? ` aria-description="${escapeAttr(slot.description)}"` : "";
     const disabled = slot.disabled ? ' disabled aria-disabled="true"' : "";
     const tone = slot.tone ? ` data-tone="${escapeAttr(slot.tone)}"` : "";
-    return `<button type="button" role="option" class="sp-slot" data-day-index="${dayIndex}" data-slot-index="${slotIndex}" data-value="${escapeAttr(value)}"${tone} aria-selected="${selected ? "true" : "false"}" tabindex="${tabbed ? 0 : -1}"${disabled}${description}>${escapeHtml(slot.start)}</button>`;
+    return `<button type="button" role="option" class="sp-slot" data-day-index="${dayIndex}" data-slot-index="${slotIndex}" data-value="${escapeAttr(value)}"${tone} aria-selected="${selected ? "true" : "false"}" tabindex="${tabbed ? 0 : -1}"${disabled}${description}><span class="sp-slot-time">${escapeHtml(slot.start)}</span></button>`;
   }
   function noticeIndicator(options = {}) {
     if (options.interactive) {
