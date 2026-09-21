@@ -1,4 +1,4 @@
-/*** @lekoala/slot-picker v0.1.1 - https://github.com/lekoala/slot-picker ***/
+/*** @lekoala/slot-picker v0.1.2 - https://github.com/lekoala/slot-picker ***/
 (() => {
   // src/date.js
   var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;

@@ -136,9 +136,11 @@
     "test:browser": "bun run build:bundle && playwright test browser --project chromium",
     "test:browser:all": "bun run build:bundle && playwright test browser",
     "check": "bun run test:syntax && bun run lint && bun run typecheck && bun run test",
+    "check:dist": "bun run build:bundle && git diff --exit-code -- dist/slot-picker.js dist/slot-picker.css",
     "verify": "bun run check && bun run sync",
+    "release": "bun scripts/release.js",
     "prepack": "bun run sync",
-    "prepublishOnly": "bun run verify"
+    "prepublishOnly": "bun run verify && bun run check:dist"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.13",

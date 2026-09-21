@@ -408,6 +408,29 @@ It shows both `columns` and `day` projections, wide and in narrow
 phone-like containers, plus bounded/responsive navigation and the range empty
 state.
 
+## Releasing
+
+```bash
+bun run release patch      # or minor, major, or an exact version
+git push --follow-tags
+```
+
+`bun run release` is the whole release: it refuses a dirty tree, a branch other
+than `master` and an existing tag, runs `bun run check`, bumps the version,
+rebuilds `dist/` so the bundle banner carries the new version, commits
+`package.json` plus the two committed artifacts, tags the bare version (no `v`
+prefix) and publishes. `--no-publish` stops after the tag, `--dry-run` prints
+the plan without touching anything.
+
+It is a single script rather than npm/bun lifecycle hooks on purpose: `npm`
+skips every script when `ignore-scripts` is set, `bun publish` does not run
+`prepublishOnly`, and `bun pm version` runs hooks with a PATH that cannot find
+`git`. A guard that silently does not fire is worse than no guard. `prepack` and
+`prepublishOnly` are kept for environments where scripts do run, and CI runs
+`bun run check:dist` so a stale committed bundle fails the build either way.
+
+## Demo
+
 The same page is published from `master` at
 <https://lekoala.github.io/slot-picker/> (GitHub Pages serves the repository
 root and redirects to `demo/`). Pages publishes the committed `dist/` bundles,
