@@ -56,6 +56,11 @@
   font: inherit;
 }
 
+/* The component renders in light DOM, so a page stylesheet can reach these
+   declarations. `!important` is what keeps assistive-technology-only text (the
+   loading status, the day strip's spoken labels) out of sight: losing it is an
+   accessibility regression, not a cosmetic one. */
+/* biome-ignore-start lint/complexity/noImportantStyles: visually-hidden must win over page styles */
 .sp-visually-hidden {
   position: absolute !important;
   inline-size: 1px !important;
@@ -67,6 +72,7 @@
   white-space: nowrap !important;
   border: 0 !important;
 }
+/* biome-ignore-end lint/complexity/noImportantStyles: visually-hidden must win over page styles */
 
 .sp-shell {
   display: block;

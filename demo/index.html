@@ -432,11 +432,11 @@
       });
     };
     const showOpenState = () => {
-      const columns = openPicker.querySelectorAll(".sp-day").length;
-      const { start, end } = openPicker.range;
+      // `range.dayCount` is the column count: read the API, not the DOM.
+      const { start, end, dayCount } = openPicker.range;
       const span = Math.round((new Date(`${end}T00:00Z`) - new Date(`${start}T00:00Z`)) / 86400000) + 1;
       // `day-count` is the ceiling; the width says how much of it fits.
-      openOutput.textContent = `${columns} of ${openPicker.dayCount} columns · ${start} → ${end} · ${span} civil days`;
+      openOutput.textContent = `${dayCount} of ${openPicker.dayCount} columns · ${start} → ${end} · ${span} civil days`;
     };
     openSelect.addEventListener("change", () => {
       applyOpenDays();

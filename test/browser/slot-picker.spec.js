@@ -2188,6 +2188,10 @@ test("narrowing the sparse demo lowers the ceiling, never the kind of column", a
   const picker = page.locator("#picker-open");
   await expect(picker.locator(".sp-day")).toHaveCount(5);
 
+  // The rendered grid, the API and the readout settle on separate ticks
+  // (render is a microtask, the demo readout a frame later). Sample them
+  // together and only assert once they agree, so a late ResizeObserver
+  // callback is a wait, not a failure.
   const read = () =>
     page.evaluate(() => {
       const element = document.querySelector("#picker-open");
@@ -2196,34 +2200,47 @@ test("narrowing the sparse demo lowers the ceiling, never the kind of column", a
         return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
       };
       const dates = [...element.querySelectorAll(".sp-day")].map((day) => day.getAttribute("data-date"));
+      const output = document.querySelector("#open-output").textContent;
       return {
         dates,
         weekdays: [...new Set(dates.map(weekdayOf))].sort(),
         columns: dates.length,
         dayCount: element.dayCount,
         visibleDayCount: element.visibleDayCount,
-        output: document.querySelector("#open-output").textContent,
+        output,
+        agrees:
+          dates.length === element.visibleDayCount &&
+          output.startsWith(`${element.visibleDayCount} of ${element.dayCount} columns`),
       };
     });
 
+  /** @param {(columns:number) => boolean} accept */
+  const settled = (accept) =>
+    expect
+      .poll(async () => {
+        const state = await read();
+        return state.agrees && accept(state.columns);
+      })
+      .toBe(true);
+
+  await settled((columns) => columns === 5);
   const wide = await read();
   expect(wide.dayCount).toBe(5);
-  expect(wide.visibleDayCount).toBe(5);
   expect(wide.output).toContain("5 of 5 columns");
 
   await page.click("#open-narrow");
-  await expect.poll(async () => (await read()).columns).toBeLessThan(5);
+  await settled((columns) => columns < 5);
   const narrow = await read();
   // `day-count` is untouched: it was always a ceiling, and the width resolves it.
   expect(narrow.dayCount).toBe(5);
   expect(narrow.visibleDayCount).toBe(narrow.columns);
   expect(narrow.visibleDayCount).toBeGreaterThanOrEqual(1);
-  expect(narrow.output).toContain(`${narrow.columns} of 5 columns`);
   // Fewer columns, but every one of them is still a real opening day.
   expect(narrow.weekdays).toEqual([2, 4]);
+  // Shrinking truncates the window, it never re-anchors it.
   expect(narrow.dates).toEqual(wide.dates.slice(0, narrow.columns));
 
   await page.click("#open-wide");
-  await expect.poll(async () => (await read()).columns).toBe(5);
+  await settled((columns) => columns === 5);
   expect((await read()).dates).toEqual(wide.dates);
 });
