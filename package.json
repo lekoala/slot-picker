@@ -1,6 +1,6 @@
 {
   "name": "@lekoala/slot-picker",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Native-first day and appointment slot picker primitive",
   "type": "module",
   "sideEffects": [
