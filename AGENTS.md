@@ -21,14 +21,20 @@ Application-specific rules belong outside the element.
 
 Never merge these concepts:
 
-- `start`: first civil day displayed;
-- `dayCount`: number of civil days displayed;
+- `start`: first day displayed;
+- `dayCount`: number of columns displayed, never a number of civil days;
+- `hiddenDays`: weekdays that are never a column (calendar structure, known before loading);
+- `closed`: business state of a real date, which keeps its column;
 - `focusedValue`: keyboard target;
 - `value`: selected local slot value;
 - `rangechange`: navigation intent;
 - `slotactivate`: explicit user activation.
 
 Changing the visible range or moving keyboard focus must not select a slot.
+
+At equal width and bounds the picker keeps its column capacity. Only `min`/`max`
+may reduce it, and only when the interval itself holds too few projectable days.
+Loaded data must never add or remove a column.
 
 ## Canonical values
 

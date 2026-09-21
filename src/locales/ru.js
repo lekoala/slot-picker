@@ -8,7 +8,6 @@ export default {
   loading: "Загрузка доступности",
   empty: "Нет доступных слотов",
   closed: "Закрыто",
-  closedRange: "Закрыто в этот период",
   rangeEmptyTitle: "На этот период нет доступных слотов",
   rangeEmptyDescription: "С {start} по {end}",
   rangeEmptyNext: "Показать следующий период",

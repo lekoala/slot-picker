@@ -8,7 +8,6 @@ export default {
   loading: "उपलब्धता लोड हो रही है",
   empty: "कोई उपलब्धता नहीं",
   closed: "बंद",
-  closedRange: "इस अवधि के दौरान बंद",
   rangeEmptyTitle: "इस अवधि में कोई स्लॉट उपलब्ध नहीं",
   rangeEmptyDescription: "{start} से {end} तक",
   rangeEmptyNext: "अगली अवधि देखें",

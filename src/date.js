@@ -41,12 +41,22 @@ export function daysBetween(a, b) {
 }
 
 /**
- * Inclusive visible civil range.
+ * Inclusive end of `dayCount` consecutive civil days.
+ * This is plain civil math, not the picker's range rule: a projection may
+ * skip weekdays, so its civil envelope can be wider than its column count.
  * @param {string} start
  * @param {number} dayCount
  */
 export function rangeEnd(start, dayCount) {
   return addDays(start, Math.max(1, dayCount) - 1);
+}
+
+/**
+ * Civil weekday index, 0 = Sunday, matching `Date#getDay`.
+ * @param {string} value
+ */
+export function weekdayIndex(value) {
+  return toUtcDate(value).getUTCDay();
 }
 
 /** @param {string} value */

@@ -1,7 +1,15 @@
-export { addDays, compareDates, daysBetween, isDateValue, rangeEnd, todayValue } from "./date.js";
+export {
+  addDays,
+  compareDates,
+  daysBetween,
+  isDateValue,
+  rangeEnd,
+  todayValue,
+  weekdayIndex,
+} from "./date.js";
 export { DEFAULT_MESSAGES, getDefaultMessages, resolveMessages, setDefaultMessages } from "./messages.js";
 export {
-  boundedDayCount,
+  clampDate,
   clampStart,
   collapsedDays,
   ensureVisible,
@@ -14,11 +22,14 @@ export {
   moveFocus,
   normalizeBreakpoints,
   normalizeDays,
+  normalizeHiddenDays,
+  projectDates,
   RESPONSIVE_BREAKPOINTS,
   rangeDetail,
   resolveActiveDate,
   resolveVisibleDayCount,
   slotValue,
+  stepStart,
   visibleDays,
 } from "./model.js";
 export { SlotPickerElement } from "./slot-picker.js";

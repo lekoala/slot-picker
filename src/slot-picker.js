@@ -1,21 +1,23 @@
-import { addDays, compareDates, isDateValue, rangeEnd, todayValue } from "./date.js";
+import { compareDates, isDateValue, todayValue } from "./date.js";
 import { resolveMessages } from "./messages.js";
 import {
-  boundedDayCount,
+  clampDate,
   clampStart,
   collapsedDays,
   ensureVisible,
   hasDayContent,
   isSlotValue,
-  isValidRange,
   moveFocus,
   normalizeBreakpoints,
   normalizeDays,
+  normalizeHiddenDays,
+  projectDates,
   RESPONSIVE_BREAKPOINTS,
   rangeDetail,
   resolveActiveDate,
   resolveVisibleDayCount,
   slotValue,
+  stepStart,
   visibleDays,
 } from "./model.js";
 import { SlotSourceController } from "./source.js";
@@ -46,7 +48,7 @@ const RANGE_ATTRIBUTES = new Set(["start", "min", "max", "day-count", "responsiv
  *   responsive: boolean,
  *   homeDate: string|null,
  *   responsiveBreakpoints: ResponsiveBreakpoint[]|null,
- *   closedDays: "show"|"hide",
+ *   hiddenDays: number[]|null,
  * }>} ConfigureOptions
  */
 
@@ -59,9 +61,11 @@ const RANGE_ATTRIBUTES = new Set(["start", "min", "max", "day-count", "responsiv
  * - value: YYYY-MM-DDTHH:mm
  *
  * State:
- * - dayCount: consumer's maximum intention
+ * - dayCount: consumer's maximum intention, counted in columns
+ * - hiddenDays: weekdays that are never a column (calendar structure)
  * - visibleDayCount: capacity actually resolved from bounds + width
- * - start/range: visible civil range
+ * - start/range: first and last projected day; the civil envelope between
+ *   them may be wider than `dayCount` when weekdays are hidden
  * - activeDate: consulted day
  * - focusedValue: keyboard target, never a selection
  * - value: selected local slot value
@@ -89,13 +93,14 @@ export class SlotPickerElement extends HTMLElement {
     "home-date",
     "next-availability",
     "notice-display",
-    "closed-days",
     "locale",
     "lang",
   ];
 
   /** @type {SlotDay[]} */
   #days = [];
+  /** @type {number[]} */
+  #hiddenDays = [];
   #sourceController = new SlotSourceController();
   /** @type {Partial<typeof import("./messages.js").DEFAULT_MESSAGES>|null} */
   #messages = null;
@@ -176,7 +181,10 @@ export class SlotPickerElement extends HTMLElement {
   set start(value) {
     if (!isDateValue(value)) throw new TypeError("start must be YYYY-MM-DD");
     const count = this.visibleDayCount;
-    this.setAttribute("start", count > 0 ? clampStart(value, this.min, this.max, count) : value);
+    this.setAttribute(
+      "start",
+      count > 0 ? clampStart(value, this.min, this.max, count, this.#hiddenDays) : value,
+    );
   }
 
   get dayCount() {
@@ -191,14 +199,54 @@ export class SlotPickerElement extends HTMLElement {
   }
 
   /**
-   * Consumer's maximum intention.
-   * @see visibleDayCount for the resolved value.
+   * Weekdays that are never rendered as a column, as `Date#getDay` indexes
+   * (`[0, 6]` hides the weekend). Calendar structure, resolved before any
+   * data is loaded, so `dayCount` keeps meaning "columns": hidden weekdays
+   * widen the civil envelope handed to the source instead of eating a column.
+   * Never confused with `closed`, which is the state of a real date.
+   * @returns {number[]}
+   */
+  get hiddenDays() {
+    return [...this.#hiddenDays];
+  }
+
+  /** @param {readonly number[]|null} value */
+  set hiddenDays(value) {
+    this.#hiddenDays = normalizeHiddenDays(value);
+    if (!this.isConnected || this.#batching) return;
+    this.#reconcile({ pinActive: true });
+  }
+
+  /**
+   * Capacity requested before the bounds: the consumer's intention narrowed
+   * by the responsive ladder. Step 1 of the pipeline.
+   */
+  #requestedDayCount() {
+    if (!this.responsive || this.#measuredWidth === null) return this.dayCount;
+    return resolveVisibleDayCount(
+      this.dayCount,
+      this.#measuredWidth,
+      this.#breakpoints ?? RESPONSIVE_BREAKPOINTS,
+    );
+  }
+
+  /**
+   * Step 2, and the single source of truth for everything downstream: the
+   * civil dates actually projected as columns. `range`, `activeDate`,
+   * navigation, rendering and loading all read this, so they can never
+   * disagree on what a "day" is.
+   * @returns {string[]}
+   */
+  #projection() {
+    return projectDates(this.start, this.#requestedDayCount(), this.#hiddenDays, this.min, this.max);
+  }
+
+  /**
+   * Capacity actually resolved from `dayCount`, the width and the bounds.
+   * @see dayCount for the consumer's intention.
    */
   get visibleDayCount() {
-    if (!isValidRange(this.min, this.max)) return 0;
-    const bounded = boundedDayCount(this.dayCount, this.min, this.max);
-    if (!this.responsive || this.#measuredWidth === null) return bounded;
-    return resolveVisibleDayCount(bounded, this.#measuredWidth, this.#breakpoints ?? RESPONSIVE_BREAKPOINTS);
+    return this.#projection().length;
   }
 
   get responsive() {
@@ -263,11 +311,9 @@ export class SlotPickerElement extends HTMLElement {
   }
 
   get activeDate() {
-    const count = this.visibleDayCount;
-    if (!count) return "";
-    const raw = this.getAttribute("active-date") || "";
-    const base = isDateValue(raw) ? raw : this.start;
-    return resolveActiveDate(this.start, count, base);
+    const dates = this.#projection();
+    if (!dates.length) return "";
+    return resolveActiveDate(dates, this.getAttribute("active-date") || "");
   }
 
   set activeDate(value) {
@@ -317,23 +363,6 @@ export class SlotPickerElement extends HTMLElement {
       throw new TypeError('notice-display must be "inline", "action" or "none"');
     }
     this.setAttribute("notice-display", value);
-  }
-
-  /**
-   * Projection policy for `closed` days:
-   * - `show` (default) renders every civil day;
-   * - `hide` omits closed days from the projection without changing the civil
-   *   range, `previous()`/`next()` or `source.load()`.
-   */
-  get closedDays() {
-    return this.getAttribute("closed-days") === "hide" ? "hide" : "show";
-  }
-
-  set closedDays(value) {
-    if (value !== "show" && value !== "hide") {
-      throw new TypeError('closed-days must be "show" or "hide"');
-    }
-    this.setAttribute("closed-days", value);
   }
 
   get expanded() {
@@ -399,19 +428,22 @@ export class SlotPickerElement extends HTMLElement {
     else this.setAttribute("locale", value);
   }
 
-  /** Resolved visible civil range. Empty and invalid when count is 0. */
+  /**
+   * Resolved visible range: first projected day, last projected day, and the
+   * number of columns. Empty and invalid when the count is 0. The civil
+   * envelope `start`..`end` is what the source must load and may be wider
+   * than `dayCount`.
+   */
   get range() {
-    const count = this.visibleDayCount;
-    if (!count) return { start: "", end: "", dayCount: 0 };
-    return rangeDetail(this.start, count);
+    return rangeDetail(this.#projection());
   }
 
   previous() {
-    this.#navigate(-this.visibleDayCount);
+    this.#navigate(-1);
   }
 
   next() {
-    this.#navigate(this.visibleDayCount);
+    this.#navigate(1);
   }
 
   /**
@@ -421,10 +453,9 @@ export class SlotPickerElement extends HTMLElement {
    * @returns {string} the resolved active date, or "" when the range is invalid
    */
   goTo(date) {
-    const count = this.visibleDayCount;
-    if (!count) return "";
-    const target = isDateValue(date) ? this.#clampToBounds(date) : this.start;
-    this.#mutate(() => this.#moveTo(target, count));
+    if (!this.visibleDayCount) return "";
+    const target = isDateValue(date) ? clampDate(date, this.min, this.max) : this.start;
+    this.#mutate(() => this.#moveTo(target));
     this.#commit();
     return this.activeDate;
   }
@@ -476,7 +507,7 @@ export class SlotPickerElement extends HTMLElement {
       if (options.homeDate !== undefined) this.homeDate = options.homeDate ?? "";
       if (options.responsiveBreakpoints !== undefined)
         this.responsiveBreakpoints = options.responsiveBreakpoints;
-      if (options.closedDays !== undefined) this.closedDays = options.closedDays;
+      if (options.hiddenDays !== undefined) this.hiddenDays = options.hiddenDays;
     });
     // An explicit start wins over the previous active-day anchor; only the
     // other options preserve the consulted day.
@@ -507,21 +538,23 @@ export class SlotPickerElement extends HTMLElement {
     if (options.responsiveBreakpoints != null && !Array.isArray(options.responsiveBreakpoints)) {
       throw new TypeError("responsiveBreakpoints must be an array or null");
     }
-    if (options.closedDays !== undefined && options.closedDays !== "show" && options.closedDays !== "hide") {
-      throw new TypeError('closedDays must be "show" or "hide"');
-    }
+    if (options.hiddenDays !== undefined) normalizeHiddenDays(options.hiddenDays);
   }
 
   async reload() {
     await this.#load();
   }
 
-  /** @param {number} delta */
-  #navigate(delta) {
-    const count = this.visibleDayCount;
-    if (!count) return;
-    const next = clampStart(addDays(this.start, delta), this.min, this.max, count);
-    if (next === this.start) return;
+  /**
+   * Move one window, counted in projected days: the adjacent window keeps the
+   * same number of columns.
+   * @param {1|-1} direction
+   */
+  #navigate(direction) {
+    const dates = this.#projection();
+    if (!dates.length) return;
+    const next = stepStart(dates, direction, this.#hiddenDays, this.min, this.max);
+    if (!next || next === this.start) return;
     this.#mutate(() => this.setAttribute("start", next));
     this.#commit();
   }
@@ -529,21 +562,14 @@ export class SlotPickerElement extends HTMLElement {
   /**
    * Move the window just enough to make `target` visible.
    * @param {string} target
-   * @param {number} count
    */
-  #moveTo(target, count) {
-    const nextStart = ensureVisible(this.start, count, target, this.min, this.max);
+  #moveTo(target) {
+    const count = this.#requestedDayCount();
+    const nextStart = ensureVisible(this.start, count, target, this.min, this.max, this.#hiddenDays);
     if (nextStart !== this.getAttribute("start")) this.setAttribute("start", nextStart);
-    const nextActive = resolveActiveDate(nextStart, count, target);
+    const dates = projectDates(nextStart, count, this.#hiddenDays, this.min, this.max);
+    const nextActive = resolveActiveDate(dates, target);
     if (this.getAttribute("active-date") !== nextActive) this.setAttribute("active-date", nextActive);
-  }
-
-  /** @param {string} date */
-  #clampToBounds(date) {
-    let next = date;
-    if (this.min && compareDates(next, this.min) < 0) next = this.min;
-    if (this.max && compareDates(next, this.max) > 0) next = this.max;
-    return next;
   }
 
   /**
@@ -570,8 +596,8 @@ export class SlotPickerElement extends HTMLElement {
     const wasBatching = this.#batching;
     this.#batching = true;
     try {
-      const count = this.visibleDayCount;
-      const invalid = count === 0;
+      const count = this.#requestedDayCount();
+      const invalid = this.visibleDayCount === 0;
       this.toggleAttribute("data-invalid-range", invalid);
       if (!invalid) {
         const rawActive = this.getAttribute("active-date") || "";
@@ -581,17 +607,18 @@ export class SlotPickerElement extends HTMLElement {
         let anchor = this.start;
         if (pinActive) {
           if (previous?.dayCount && isDateValue(rawActive)) {
-            anchor = resolveActiveDate(previous.start, previous.dayCount, rawActive);
+            anchor = clampDate(rawActive, previous.start, previous.end);
           } else if (isDateValue(rawActive)) {
             anchor = rawActive;
           } else if (previous?.start) {
             anchor = previous.start;
           }
         }
-        const nextStart = ensureVisible(this.start, count, anchor, this.min, this.max);
+        const nextStart = ensureVisible(this.start, count, anchor, this.min, this.max, this.#hiddenDays);
         if (nextStart !== this.getAttribute("start")) this.setAttribute("start", nextStart);
         if (pinActive && isDateValue(anchor)) {
-          const nextActive = resolveActiveDate(nextStart, count, anchor);
+          const dates = projectDates(nextStart, count, this.#hiddenDays, this.min, this.max);
+          const nextActive = resolveActiveDate(dates, anchor);
           if (this.getAttribute("active-date") !== nextActive) this.setAttribute("active-date", nextActive);
         }
       }
@@ -665,9 +692,9 @@ export class SlotPickerElement extends HTMLElement {
 
   /** @param {string} date @param {boolean} emit */
   #setActiveDate(date, emit = true) {
-    const count = this.visibleDayCount;
-    if (!count) return;
-    const resolved = resolveActiveDate(this.start, count, date);
+    const dates = this.#projection();
+    if (!dates.length) return;
+    const resolved = resolveActiveDate(dates, date);
     const before = this.activeDate;
     if (resolved === before && this.getAttribute("active-date") === resolved) return;
     this.setAttribute("active-date", resolved);
@@ -763,19 +790,13 @@ export class SlotPickerElement extends HTMLElement {
   }
 
   /**
-   * Days actually handed to a projection. The civil range never changes; only
-   * `closed-days="hide"` removes closed days, and in `layout="day"` the
-   * consulted day is kept even when closed so data arrival can never move
-   * `activeDate` on its own.
+   * Days actually handed to a projection: one per projected date, filled in
+   * when the source knows nothing about that day. Loaded data never adds or
+   * removes a column, so `closed: true` cannot change the grid.
    * @returns {SlotDay[]}
    */
   #projectedDays() {
-    const count = this.visibleDayCount;
-    if (!count) return [];
-    const days = visibleDays(this.#days, this.start, count);
-    if (this.closedDays !== "hide") return days;
-    const active = this.activeDate;
-    return days.filter((day) => !day.closed || (this.layout === "day" && day.date === active));
+    return visibleDays(this.#days, this.#projection());
   }
 
   #render() {
@@ -785,18 +806,19 @@ export class SlotPickerElement extends HTMLElement {
     const pendingSelector = this.#pendingFocus;
     this.#pendingFocus = "";
 
-    const count = this.visibleDayCount;
-    const invalid = count === 0;
-    // The civil range stays the source of truth; the projection may hide closed
-    // days without changing `range`, `previous()/next()` or `source.load()`.
-    const civilDays = count ? visibleDays(this.#days, this.start, count) : [];
-    const days = this.#projectedDays();
-    const allClosed = civilDays.length > 0 && civilDays.every((day) => day.closed);
+    const dates = this.#projection();
+    const range = rangeDetail(dates);
+    const invalid = range.dayCount === 0;
+    const days = visibleDays(this.#days, dates);
     // Resolve at render time so `setDefaultMessages()` reaches live instances.
     const messages = resolveMessages(this.#messages);
     const locale = this.locale;
-    const canPrevious = !invalid && (!this.min || compareDates(this.start, this.min) > 0);
-    const canNext = !invalid && (!this.max || compareDates(rangeEnd(this.start, count), this.max) < 0);
+    // Navigation is offered when stepping actually moves the window: with
+    // hidden weekdays a bound can sit on a day that is never projected, so a
+    // civil comparison would enable a button that does nothing.
+    const canPrevious =
+      !invalid && stepStart(dates, -1, this.#hiddenDays, this.min, this.max) !== range.start;
+    const canNext = !invalid && stepStart(dates, 1, this.#hiddenDays, this.min, this.max) !== range.start;
 
     // A range is "empty" only when the projected days have no meaningful
     // content. A notice or a closed day without slots keeps the projection.
@@ -806,12 +828,11 @@ export class SlotPickerElement extends HTMLElement {
     let hasOverflow = false;
     if (empty) {
       content = rangeEmpty({
-        start: this.range.start,
-        end: this.range.end,
+        start: range.start,
+        end: range.end,
         invalid,
         canNext,
         nextAvailability: this.hasAttribute("next-availability"),
-        closed: allClosed,
         locale,
         messages,
       });
@@ -857,9 +878,11 @@ export class SlotPickerElement extends HTMLElement {
     const homeAvailable = this.hasAttribute("home-date") && !invalid;
     const homeInRange =
       homeAvailable &&
-      compareDates(this.homeDate, this.range.start) >= 0 &&
-      compareDates(this.homeDate, this.range.end) <= 0;
+      compareDates(this.homeDate, range.start) >= 0 &&
+      compareDates(this.homeDate, range.end) <= 0;
 
+    // Column capacity is resolved before the data: at equal width and bounds
+    // it never changes, whatever the source says about those days.
     this.style.setProperty("--_sp-day-count", String(Math.max(1, days.length)));
     this.style.setProperty("--_sp-max-visible-rows", String(this.maxVisibleRows));
     // `aria-busy` is the single source of loading state; the fade is pure CSS.

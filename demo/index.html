@@ -155,22 +155,59 @@
     <slot-picker id="picker-notice" start="2026-11-17" day-count="5"></slot-picker>
   </div>
   <div class="card">
-    <h2>Closed days</h2>
+    <h2>Hidden days vs closed days</h2>
     <p>
-      Bounded range that starts today: the source closes weekends and today's weekday, and opens the
-      other days with a few slots. <code>closed: true</code> is a normal day state — the day stays in
-      the civil window and is styled through <code>[data-closed]</code>, distinct from an open day with
-      no availability. Use the arrows to navigate between closed and open windows.
+      Two different ideas. <strong>Hidden days</strong> are calendar structure: the component knows
+      them before loading anything, so <code>hiddenDays = [0, 6]</code> never spends a column on a
+      weekend and <code>day-count="5"</code> still means five columns — only the civil envelope sent
+      to the source gets wider. <strong><code>closed: true</code></strong> is the business state of a
+      real date: it keeps its column, shows <code>Closed</code> and is styled through
+      <code>[data-closed]</code>, distinct again from an open day with no availability.
+    </p>
+    <p>
+      Bounded range that starts today. Switch the projection and navigate: the column count never
+      moves, only which dates fill it.
     </p>
     <div class="row">
-      <label for="closed-days">closed-days</label>
-      <select id="closed-days">
-        <option value="show" selected>show</option>
-        <option value="hide">hide</option>
+      <label for="hidden-days">hiddenDays</label>
+      <select id="hidden-days">
+        <option value="weekend" selected>[0, 6] · weekend hidden</option>
+        <option value="none">[] · every civil day</option>
       </select>
       <output id="closed-output"></output>
     </div>
     <slot-picker id="picker-closed" day-count="5"></slot-picker>
+  </div>
+  <div class="card">
+    <h2>One or two opening days a week</h2>
+    <p>
+      A practitioner who only works a couple of weekdays. Which weekdays they work is calendar
+      structure, not availability, so <code>hiddenDays</code> removes the rest before anything is
+      loaded. <code>day-count="5"</code> still means five columns — and they are five real opening
+      days instead of a grid mostly made of closed ones. The civil envelope simply stretches over
+      the weeks those columns span, and <code>next()</code> jumps a whole window of opening days.
+    </p>
+    <p>
+      It is <code>responsive</code>, so narrow the container: <code>day-count="5"</code> is a
+      ceiling, never a promise. The width decides how many of those columns fit, and they stay
+      real opening days — two useful columns on a phone instead of two weekend ones.
+    </p>
+    <div class="row">
+      <label for="open-days">Opening weekdays</label>
+      <select id="open-days">
+        <option value="2,4" selected>Tuesday and Thursday</option>
+        <option value="3">Wednesday only</option>
+        <option value="1,3,5">Monday, Wednesday, Friday</option>
+      </select>
+    </div>
+    <div id="open-host" class="phone" style="inline-size: 760px; max-inline-size: 100%">
+      <slot-picker id="picker-open" day-count="5" responsive></slot-picker>
+    </div>
+    <div class="row">
+      <button id="open-narrow" type="button">Shrink to 360px</button>
+      <button id="open-wide" type="button">Widen to 760px</button>
+      <output id="open-output"></output>
+    </div>
   </div>
   <div class="card">
     <h2>Messages / locale</h2>
@@ -310,8 +347,9 @@
     const emptyPicker = document.querySelector("#picker-empty");
     emptyPicker.days = emptyDays;
 
-    // Bounded, live closed-days scenario: starts today, weekends and today's
-    // weekday are closed, other days are open with a few slots.
+    // Bounded, live scenario starting today. The weekend is both hidden
+    // structurally and marked closed by the source, so toggling `hiddenDays`
+    // shows the same two days as "not a column" or as "a closed column".
     const closedPicker = document.querySelector("#picker-closed");
     const civilToday = () => {
       const now = new Date();
@@ -335,35 +373,87 @@
       return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
     };
     const startDate = civilToday();
-    const closedWeekday = weekdayOf(startDate);
+    // One exceptional closure and one open-but-empty day, placed on the third
+    // and fourth weekday of the range so both are visible straight away.
+    let weekdayRank = 0;
     const closedDays = Array.from({ length: 42 }, (_, index) => {
       const date = shiftDate(startDate, index);
       const weekday = weekdayOf(date);
-      if (weekday === 0 || weekday === 6 || weekday === closedWeekday) {
-        return { date, slots: [], closed: true };
-      }
+      if (weekday === 0 || weekday === 6) return { date, slots: [], closed: true };
+      weekdayRank += 1;
+      if (weekdayRank === 3) return { date, slots: [], closed: true };
+      if (weekdayRank === 4) return { date, slots: [] };
       return {
         date,
         slots: [{ start: "09:00" }, { start: "10:30" }, { start: "14:00" }, { start: "16:30" }]
       };
     });
+    closedPicker.hiddenDays = [0, 6];
     closedPicker.min = startDate;
     closedPicker.max = shiftDate(startDate, 41);
     closedPicker.start = startDate;
     closedPicker.days = closedDays;
 
-    const closedSelect = document.querySelector("#closed-days");
+    const hiddenSelect = document.querySelector("#hidden-days");
     const closedOutput = document.querySelector("#closed-output");
     const showClosedState = () => {
       const columns = closedPicker.querySelectorAll(".sp-day").length;
-      closedOutput.textContent = `range ${closedPicker.range.dayCount} days · ${columns} columns`;
+      const { start, end, dayCount } = closedPicker.range;
+      closedOutput.textContent = `${columns} columns · dayCount ${dayCount} · envelope ${start} → ${end}`;
     };
-    closedSelect.addEventListener("change", () => {
-      closedPicker.closedDays = closedSelect.value;
+    hiddenSelect.addEventListener("change", () => {
+      closedPicker.hiddenDays = hiddenSelect.value === "weekend" ? [0, 6] : [];
       requestAnimationFrame(showClosedState);
     });
     closedPicker.addEventListener("rangechange", () => requestAnimationFrame(showClosedState));
     requestAnimationFrame(showClosedState);
+
+    // A sparse weekly schedule: the weekdays this person never works are
+    // structure, so they are hidden rather than returned as closed days. Five
+    // columns then mean five real opening days, whatever the calendar costs.
+    const openPicker = document.querySelector("#picker-open");
+    const openSelect = document.querySelector("#open-days");
+    const openOutput = document.querySelector("#open-output");
+    const openHorizon = 180;
+    openPicker.min = startDate;
+    openPicker.max = shiftDate(startDate, openHorizon - 1);
+    const applyOpenDays = () => {
+      const open = openSelect.value.split(",").map(Number);
+      // The source only knows about the days this person actually works.
+      openPicker.days = Array.from({ length: openHorizon }, (_, index) => shiftDate(startDate, index))
+        .filter((date) => open.includes(weekdayOf(date)))
+        .map((date) => ({
+          date,
+          slots: [{ start: "09:00" }, { start: "11:00" }, { start: "14:30" }, { start: "16:00" }]
+        }));
+      openPicker.configure({
+        hiddenDays: [0, 1, 2, 3, 4, 5, 6].filter((weekday) => !open.includes(weekday)),
+        start: startDate
+      });
+    };
+    const showOpenState = () => {
+      const columns = openPicker.querySelectorAll(".sp-day").length;
+      const { start, end } = openPicker.range;
+      const span = Math.round((new Date(`${end}T00:00Z`) - new Date(`${start}T00:00Z`)) / 86400000) + 1;
+      // `day-count` is the ceiling; the width says how much of it fits.
+      openOutput.textContent = `${columns} of ${openPicker.dayCount} columns · ${start} → ${end} · ${span} civil days`;
+    };
+    openSelect.addEventListener("change", () => {
+      applyOpenDays();
+      requestAnimationFrame(showOpenState);
+    });
+    openPicker.addEventListener("rangechange", () => requestAnimationFrame(showOpenState));
+    const openHost = document.querySelector("#open-host");
+    document.querySelector("#open-narrow").addEventListener("click", () => {
+      openHost.style.inlineSize = "360px";
+      requestAnimationFrame(showOpenState);
+    });
+    document.querySelector("#open-wide").addEventListener("click", () => {
+      openHost.style.inlineSize = "760px";
+      requestAnimationFrame(showOpenState);
+    });
+    applyOpenDays();
+    requestAnimationFrame(showOpenState);
 
     const noticePicker = document.querySelector("#picker-notice");
     noticePicker.days = noticeDays;
@@ -412,8 +502,15 @@
     ];
 
     const output = document.querySelector("#output");
-    [...pickers, responsivePicker, emptyPicker, noticePicker, closedPicker, localePicker].forEach(
-      (picker) => {
+    [
+      ...pickers,
+      responsivePicker,
+      emptyPicker,
+      noticePicker,
+      closedPicker,
+      openPicker,
+      localePicker
+    ].forEach((picker) => {
       picker.addEventListener("slotactivate", (event) => {
         output.textContent = `Selected: ${event.detail.value}`;
       });

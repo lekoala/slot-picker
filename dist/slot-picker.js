@@ -27,11 +27,8 @@
   function compareDates(a, b) {
     return a.localeCompare(b);
   }
-  function daysBetween(a, b) {
-    return Math.round((toUtcDate(b).getTime() - toUtcDate(a).getTime()) / 86400000);
-  }
-  function rangeEnd(start, dayCount) {
-    return addDays(start, Math.max(1, dayCount) - 1);
+  function weekdayIndex(value) {
+    return toUtcDate(value).getUTCDay();
   }
   function toUtcDate(value) {
     const { year, month, day } = parts(value);
@@ -57,7 +54,6 @@
     loading: "Loading availability",
     empty: "No availability",
     closed: "Closed",
-    closedRange: "Closed during this period",
     rangeEmptyTitle: "No availability in this period",
     rangeEmptyDescription: "From {start} to {end}",
     rangeEmptyNext: "See the next period",
@@ -135,13 +131,10 @@
       };
     }).sort((a, b) => a.date.localeCompare(b.date));
   }
-  function visibleDays(days, start, dayCount) {
+  function visibleDays(days, dates) {
     const normalized = normalizeDays(days);
     const byDate = new Map(normalized.map((day) => [day.date, day]));
-    return Array.from({ length: dayCount }, (_, index) => {
-      const date = addDays(start, index);
-      return byDate.get(date) ?? { date, slots: [] };
-    });
+    return dates.map((date) => byDate.get(date) ?? { date, slots: [] });
   }
   function collapsedDays(days, maxVisibleRows, expanded) {
     const maxRows = Math.max(0, ...days.map((day) => day.slots.length));
@@ -155,13 +148,64 @@
   function isValidRange(min, max) {
     return !min || !max || compareDates(min, max) <= 0;
   }
-  function boundedDayCount(dayCount, min, max) {
-    const requested = Math.max(1, Number(dayCount) || 1);
-    if (!min || !max)
-      return requested;
-    if (compareDates(min, max) > 0)
-      return 0;
-    return Math.min(requested, daysBetween(min, max) + 1);
+  function clampDate(date, min, max) {
+    if (min && compareDates(date, min) < 0)
+      return min;
+    if (max && compareDates(date, max) > 0)
+      return max;
+    return date;
+  }
+  function normalizeHiddenDays(input) {
+    if (input === null || input === undefined)
+      return [];
+    if (!Array.isArray(input))
+      throw new TypeError("hiddenDays must be an array of weekday indexes");
+    const indexes = input.map((value) => {
+      const index = Number(value);
+      if (!Number.isInteger(index) || index < 0 || index > 6) {
+        throw new TypeError("hiddenDays entries must be integers from 0 (Sunday) to 6 (Saturday)");
+      }
+      return index;
+    });
+    const hidden = [...new Set(indexes)].sort((a, b) => a - b);
+    if (hidden.length === 7)
+      throw new TypeError("hiddenDays cannot hide every weekday");
+    return hidden;
+  }
+  function walk(from, count, hidden, step, bound) {
+    const dates = [];
+    let date = from;
+    while (dates.length < count) {
+      if (bound && (step > 0 ? compareDates(date, bound) > 0 : compareDates(date, bound) < 0))
+        break;
+      if (!hidden.includes(weekdayIndex(date)))
+        dates.push(date);
+      date = addDays(date, step);
+    }
+    return dates;
+  }
+  function projectDates(start, dayCount, hiddenDays = [], min = "", max = "") {
+    const count = Math.max(0, Math.trunc(Number(dayCount) || 0));
+    if (!count || !isDateValue(start) || !isValidRange(min, max))
+      return [];
+    const hidden = normalizeHiddenDays(hiddenDays);
+    const from = clampDate(start, min, max);
+    const forward = walk(from, count, hidden, 1, max);
+    if (forward.length === count)
+      return forward;
+    const backward = walk(addDays(forward[0] ?? from, -1), count - forward.length, hidden, -1, min);
+    return [...backward.reverse(), ...forward];
+  }
+  function stepStart(dates, direction, hiddenDays = [], min = "", max = "") {
+    if (!dates.length)
+      return "";
+    const hidden = normalizeHiddenDays(hiddenDays);
+    const count = dates.length;
+    if (direction > 0) {
+      return projectDates(addDays(dates[count - 1], 1), count, hidden, min, max)[0] ?? dates[0];
+    }
+    const backward = walk(addDays(dates[0], -1), count, hidden, -1, min);
+    return projectDates(backward[backward.length - 1] ?? dates[0], count, hidden, min, max)[0] ?? dates[0];
   }
   function normalizeBreakpoints(breakpoints) {
     return breakpoints.map((breakpoint) => ({
@@ -178,46 +222,47 @@
     const match = ladder.find((breakpoint) => size >= breakpoint.minWidth) ?? ladder[ladder.length - 1];
     return Math.min(requested, match.dayCount);
   }
-  function clampStart(start, min, max, dayCount) {
-    let next = start;
-    if (min && compareDates(next, min) < 0)
-      next = min;
-    const count = Math.max(1, dayCount);
-    if (max) {
-      const latest = addDays(max, -(count - 1));
-      if (compareDates(latest, min || next) < 0)
-        next = min || latest;
-      else if (compareDates(next, latest) > 0)
-        next = latest;
-    }
-    return next;
+  function clampStart(start, min, max, dayCount, hiddenDays = []) {
+    return projectDates(start, dayCount, hiddenDays, min, max)[0] ?? clampDate(start, min, max);
   }
-  function ensureVisible(start, dayCount, date, min, max) {
+  function ensureVisible(start, dayCount, date, min, max, hiddenDays = []) {
+    const hidden = normalizeHiddenDays(hiddenDays);
     const count = Math.max(1, dayCount);
-    const bounded = clampStart(start, min, max, count);
+    const dates = projectDates(start, count, hidden, min, max);
+    if (!dates.length)
+      return clampDate(start, min, max);
+    const first = dates[0];
     if (!isDateValue(date))
-      return bounded;
-    const end = rangeEnd(bounded, count);
-    if (compareDates(date, bounded) >= 0 && compareDates(date, end) <= 0)
-      return bounded;
-    const candidate = compareDates(date, bounded) < 0 ? date : addDays(date, -(count - 1));
-    return clampStart(candidate, min, max, count);
+      return first;
+    if (compareDates(date, first) < 0)
+      return projectDates(date, count, hidden, min, max)[0] ?? first;
+    if (compareDates(date, dates[dates.length - 1]) <= 0)
+      return first;
+    const target = walk(date, 1, hidden, 1, max)[0];
+    if (!target)
+      return first;
+    const backward = walk(target, count, hidden, -1, min);
+    return projectDates(backward[backward.length - 1] ?? target, count, hidden, min, max)[0] ?? first;
   }
   function hasDayContent(days) {
     return days.some((day) => Array.isArray(day.slots) && day.slots.length > 0 || Boolean(day.notice) || Boolean(day.closed));
   }
-  function rangeDetail(start, dayCount) {
-    return { start, end: rangeEnd(start, dayCount), dayCount };
+  function rangeDetail(dates) {
+    if (!dates.length)
+      return { start: "", end: "", dayCount: 0 };
+    return { start: dates[0], end: dates[dates.length - 1], dayCount: dates.length };
   }
-  function resolveActiveDate(start, dayCount, activeDate) {
+  function resolveActiveDate(dates, activeDate) {
+    if (!dates.length)
+      return "";
+    const last = dates[dates.length - 1];
     if (!isDateValue(activeDate))
-      return start;
-    if (compareDates(activeDate, start) < 0)
-      return start;
-    const end = rangeEnd(start, dayCount);
-    if (compareDates(activeDate, end) > 0)
-      return end;
-    return activeDate;
+      return dates[0];
+    if (compareDates(activeDate, dates[0]) <= 0)
+      return dates[0];
+    if (compareDates(activeDate, last) >= 0)
+      return last;
+    return dates.find((date) => compareDates(date, activeDate) >= 0) ?? last;
   }
   function firstEnabledIndex(day) {
     return day.slots.findIndex((slot) => !slot.disabled);
@@ -393,7 +438,7 @@
       return messages.oneSlot;
     return messages.manySlots.replace("{n}", String(count));
   }
-  function rangeEmpty({ start, end, invalid, canNext, nextAvailability, closed, locale, messages }) {
+  function rangeEmpty({ start, end, invalid, canNext, nextAvailability, locale, messages }) {
     const showDescription = !invalid && Boolean(start);
     let description = "";
     if (showDescription) {
@@ -413,9 +458,8 @@
       actions.push(`<button type="button" class="sp-range-empty-availability">${escapeHtml(messages.nextAvailability)}</button>`);
     }
     const action = actions.length ? `<div class="sp-range-empty-actions">${actions.join("")}</div>` : "";
-    const title = closed ? messages.closedRange : messages.rangeEmptyTitle;
     return `<div class="sp-range-empty">
-    <strong class="sp-range-empty-title">${escapeHtml(title)}</strong>
+    <strong class="sp-range-empty-title">${escapeHtml(messages.rangeEmptyTitle)}</strong>
     ${description}
     ${action}
   </div>`;
@@ -577,11 +621,11 @@
       "home-date",
       "next-availability",
       "notice-display",
-      "closed-days",
       "locale",
       "lang"
     ];
     #days = [];
+    #hiddenDays = [];
     #sourceController = new SlotSourceController;
     #messages = null;
     #loading = false;
@@ -642,7 +686,7 @@
       if (!isDateValue(value))
         throw new TypeError("start must be YYYY-MM-DD");
       const count = this.visibleDayCount;
-      this.setAttribute("start", count > 0 ? clampStart(value, this.min, this.max, count) : value);
+      this.setAttribute("start", count > 0 ? clampStart(value, this.min, this.max, count, this.#hiddenDays) : value);
     }
     get dayCount() {
       const value = Number.parseInt(this.getAttribute("day-count") || "5", 10);
@@ -652,13 +696,25 @@
       const next = Math.max(1, Math.min(14, Number(value) || 5));
       this.setAttribute("day-count", String(next));
     }
-    get visibleDayCount() {
-      if (!isValidRange(this.min, this.max))
-        return 0;
-      const bounded = boundedDayCount(this.dayCount, this.min, this.max);
+    get hiddenDays() {
+      return [...this.#hiddenDays];
+    }
+    set hiddenDays(value) {
+      this.#hiddenDays = normalizeHiddenDays(value);
+      if (!this.isConnected || this.#batching)
+        return;
+      this.#reconcile({ pinActive: true });
+    }
+    #requestedDayCount() {
       if (!this.responsive || this.#measuredWidth === null)
-        return bounded;
-      return resolveVisibleDayCount(bounded, this.#measuredWidth, this.#breakpoints ?? RESPONSIVE_BREAKPOINTS);
+        return this.dayCount;
+      return resolveVisibleDayCount(this.dayCount, this.#measuredWidth, this.#breakpoints ?? RESPONSIVE_BREAKPOINTS);
+    }
+    #projection() {
+      return projectDates(this.start, this.#requestedDayCount(), this.#hiddenDays, this.min, this.max);
+    }
+    get visibleDayCount() {
+      return this.#projection().length;
     }
     get responsive() {
       return this.hasAttribute("responsive");
@@ -714,12 +770,10 @@
         throw new TypeError("value must be a valid YYYY-MM-DDTHH:mm or empty");
     }
     get activeDate() {
-      const count = this.visibleDayCount;
-      if (!count)
+      const dates = this.#projection();
+      if (!dates.length)
         return "";
-      const raw = this.getAttribute("active-date") || "";
-      const base = isDateValue(raw) ? raw : this.start;
-      return resolveActiveDate(this.start, count, base);
+      return resolveActiveDate(dates, this.getAttribute("active-date") || "");
     }
     set activeDate(value) {
       if (!value)
@@ -761,15 +815,6 @@
         throw new TypeError('notice-display must be "inline", "action" or "none"');
       }
       this.setAttribute("notice-display", value);
-    }
-    get closedDays() {
-      return this.getAttribute("closed-days") === "hide" ? "hide" : "show";
-    }
-    set closedDays(value) {
-      if (value !== "show" && value !== "hide") {
-        throw new TypeError('closed-days must be "show" or "hide"');
-      }
-      this.setAttribute("closed-days", value);
     }
     get expanded() {
       return this.hasAttribute("expanded");
@@ -815,23 +860,19 @@
         this.setAttribute("locale", value);
     }
     get range() {
-      const count = this.visibleDayCount;
-      if (!count)
-        return { start: "", end: "", dayCount: 0 };
-      return rangeDetail(this.start, count);
+      return rangeDetail(this.#projection());
     }
     previous() {
-      this.#navigate(-this.visibleDayCount);
+      this.#navigate(-1);
     }
     next() {
-      this.#navigate(this.visibleDayCount);
+      this.#navigate(1);
     }
     goTo(date) {
-      const count = this.visibleDayCount;
-      if (!count)
+      if (!this.visibleDayCount)
         return "";
-      const target = isDateValue(date) ? this.#clampToBounds(date) : this.start;
-      this.#mutate(() => this.#moveTo(target, count));
+      const target = isDateValue(date) ? clampDate(date, this.min, this.max) : this.start;
+      this.#mutate(() => this.#moveTo(target));
       this.#commit();
       return this.activeDate;
     }
@@ -875,8 +916,8 @@
           this.homeDate = options.homeDate ?? "";
         if (options.responsiveBreakpoints !== undefined)
           this.responsiveBreakpoints = options.responsiveBreakpoints;
-        if (options.closedDays !== undefined)
-          this.closedDays = options.closedDays;
+        if (options.hiddenDays !== undefined)
+          this.hiddenDays = options.hiddenDays;
       });
       this.#reconcile({ pinActive: options.start === undefined });
     }
@@ -900,38 +941,31 @@
       if (options.responsiveBreakpoints != null && !Array.isArray(options.responsiveBreakpoints)) {
         throw new TypeError("responsiveBreakpoints must be an array or null");
       }
-      if (options.closedDays !== undefined && options.closedDays !== "show" && options.closedDays !== "hide") {
-        throw new TypeError('closedDays must be "show" or "hide"');
-      }
+      if (options.hiddenDays !== undefined)
+        normalizeHiddenDays(options.hiddenDays);
     }
     async reload() {
       await this.#load();
     }
-    #navigate(delta) {
-      const count = this.visibleDayCount;
-      if (!count)
+    #navigate(direction) {
+      const dates = this.#projection();
+      if (!dates.length)
         return;
-      const next = clampStart(addDays(this.start, delta), this.min, this.max, count);
-      if (next === this.start)
+      const next = stepStart(dates, direction, this.#hiddenDays, this.min, this.max);
+      if (!next || next === this.start)
         return;
       this.#mutate(() => this.setAttribute("start", next));
       this.#commit();
     }
-    #moveTo(target, count) {
-      const nextStart = ensureVisible(this.start, count, target, this.min, this.max);
+    #moveTo(target) {
+      const count = this.#requestedDayCount();
+      const nextStart = ensureVisible(this.start, count, target, this.min, this.max, this.#hiddenDays);
       if (nextStart !== this.getAttribute("start"))
         this.setAttribute("start", nextStart);
-      const nextActive = resolveActiveDate(nextStart, count, target);
+      const dates = projectDates(nextStart, count, this.#hiddenDays, this.min, this.max);
+      const nextActive = resolveActiveDate(dates, target);
       if (this.getAttribute("active-date") !== nextActive)
         this.setAttribute("active-date", nextActive);
-    }
-    #clampToBounds(date) {
-      let next = date;
-      if (this.min && compareDates(next, this.min) < 0)
-        next = this.min;
-      if (this.max && compareDates(next, this.max) > 0)
-        next = this.max;
-      return next;
     }
     #mutate(fn) {
       const wasBatching = this.#batching;
@@ -948,8 +982,8 @@
       const wasBatching = this.#batching;
       this.#batching = true;
       try {
-        const count = this.visibleDayCount;
-        const invalid = count === 0;
+        const count = this.#requestedDayCount();
+        const invalid = this.visibleDayCount === 0;
         this.toggleAttribute("data-invalid-range", invalid);
         if (!invalid) {
           const rawActive = this.getAttribute("active-date") || "";
@@ -957,18 +991,19 @@
           let anchor = this.start;
           if (pinActive) {
             if (previous?.dayCount && isDateValue(rawActive)) {
-              anchor = resolveActiveDate(previous.start, previous.dayCount, rawActive);
+              anchor = clampDate(rawActive, previous.start, previous.end);
             } else if (isDateValue(rawActive)) {
               anchor = rawActive;
             } else if (previous?.start) {
               anchor = previous.start;
             }
           }
-          const nextStart = ensureVisible(this.start, count, anchor, this.min, this.max);
+          const nextStart = ensureVisible(this.start, count, anchor, this.min, this.max, this.#hiddenDays);
           if (nextStart !== this.getAttribute("start"))
             this.setAttribute("start", nextStart);
           if (pinActive && isDateValue(anchor)) {
-            const nextActive = resolveActiveDate(nextStart, count, anchor);
+            const dates = projectDates(nextStart, count, this.#hiddenDays, this.min, this.max);
+            const nextActive = resolveActiveDate(dates, anchor);
             if (this.getAttribute("active-date") !== nextActive)
               this.setAttribute("active-date", nextActive);
           }
@@ -1025,10 +1060,10 @@
       return content ? content.getBoundingClientRect().width : null;
     }
     #setActiveDate(date, emit = true) {
-      const count = this.visibleDayCount;
-      if (!count)
+      const dates = this.#projection();
+      if (!dates.length)
         return;
-      const resolved = resolveActiveDate(this.start, count, date);
+      const resolved = resolveActiveDate(dates, date);
       const before = this.activeDate;
       if (resolved === before && this.getAttribute("active-date") === resolved)
         return;
@@ -1116,40 +1151,31 @@
       return this.querySelector('.sp-slot[tabindex="0"]') ?? this.querySelector('.sp-strip-day[tabindex="0"]');
     }
     #projectedDays() {
-      const count = this.visibleDayCount;
-      if (!count)
-        return [];
-      const days = visibleDays(this.#days, this.start, count);
-      if (this.closedDays !== "hide")
-        return days;
-      const active = this.activeDate;
-      return days.filter((day) => !day.closed || this.layout === "day" && day.date === active);
+      return visibleDays(this.#days, this.#projection());
     }
     #render() {
       const focused = document.activeElement;
       const fallbackSelector = focused instanceof Element && this.contains(focused) ? this.#focusSelector(focused) : "";
       const pendingSelector = this.#pendingFocus;
       this.#pendingFocus = "";
-      const count = this.visibleDayCount;
-      const invalid = count === 0;
-      const civilDays = count ? visibleDays(this.#days, this.start, count) : [];
-      const days = this.#projectedDays();
-      const allClosed = civilDays.length > 0 && civilDays.every((day) => day.closed);
+      const dates = this.#projection();
+      const range = rangeDetail(dates);
+      const invalid = range.dayCount === 0;
+      const days = visibleDays(this.#days, dates);
       const messages = resolveMessages(this.#messages);
       const locale = this.locale;
-      const canPrevious = !invalid && (!this.min || compareDates(this.start, this.min) > 0);
-      const canNext = !invalid && (!this.max || compareDates(rangeEnd(this.start, count), this.max) < 0);
+      const canPrevious = !invalid && stepStart(dates, -1, this.#hiddenDays, this.min, this.max) !== range.start;
+      const canNext = !invalid && stepStart(dates, 1, this.#hiddenDays, this.min, this.max) !== range.start;
       const empty = !this.#loading && !this.#error && !hasDayContent(days);
       let content;
       let hasOverflow = false;
       if (empty) {
         content = rangeEmpty({
-          start: this.range.start,
-          end: this.range.end,
+          start: range.start,
+          end: range.end,
           invalid,
           canNext,
           nextAvailability: this.hasAttribute("next-availability"),
-          closed: allClosed,
           locale,
           messages
         });
@@ -1180,7 +1206,7 @@
       }
       const status = this.#loading ? `<div class="sp-status sp-visually-hidden" role="status">${escapeHtml(messages.loading)}</div>` : this.#error ? `<div class="sp-status sp-status-error" role="status">${escapeHtml(String(this.#error))}</div>` : "";
       const homeAvailable = this.hasAttribute("home-date") && !invalid;
-      const homeInRange = homeAvailable && compareDates(this.homeDate, this.range.start) >= 0 && compareDates(this.homeDate, this.range.end) <= 0;
+      const homeInRange = homeAvailable && compareDates(this.homeDate, range.start) >= 0 && compareDates(this.homeDate, range.end) <= 0;
       this.style.setProperty("--_sp-day-count", String(Math.max(1, days.length)));
       this.style.setProperty("--_sp-max-visible-rows", String(this.maxVisibleRows));
       if (this.#loading)

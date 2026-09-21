@@ -8,7 +8,6 @@ export default {
   loading: "Ładowanie dostępności",
   empty: "Brak dostępności",
   closed: "Zamknięte",
-  closedRange: "Zamknięte w tym okresie",
   rangeEmptyTitle: "Brak dostępności w tym okresie",
   rangeEmptyDescription: "Od {start} do {end}",
   rangeEmptyNext: "Zobacz następny okres",

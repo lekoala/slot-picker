@@ -53,6 +53,11 @@ picker.source = async ({ start, end, signal }) => {
 };
 ```
 
+`start` and `end` are the inclusive civil envelope of the visible window. With
+`hiddenDays` set it can be wider than `dayCount`, so load the whole envelope and
+let the component pick the columns; days outside it are ignored. No adaptive
+fetching is ever required: the envelope is known before the request.
+
 A source may also be an object that additionally resolves the next known
 availability beyond the visible range:
 
@@ -89,9 +94,15 @@ metadata stay outside core.
 ></slot-picker>
 ```
 
-- `day-count` is the maximum intention; `visibleDayCount` is the capacity actually resolved from `min`/`max` and the component's own width (opt-in via `responsive`, overridable with `responsiveBreakpoints`, observed with `ResizeObserver`).
+- `day-count` is the maximum intention, counted in **columns**; `visibleDayCount` is the capacity actually resolved from `min`/`max` and the component's own width (opt-in via `responsive`, overridable with `responsiveBreakpoints`, observed with `ResizeObserver`).
 - `min`/`max` are hard bounds. `min > max` is an invalid configuration: `range` becomes `{ start: "", end: "", dayCount: 0 }`, `data-invalid-range` is set, and the source is never called.
+- `hiddenDays` removes weekdays from the calendar structure; it never costs a column.
 - `home-date` is a reference date for `goHome()`, never confused with `min`.
+
+At equal width and bounds the picker keeps its column capacity: only `min`/`max`
+can really reduce it, and only when the interval itself holds too few
+projectable days. `previous()`/`next()` move by projected days, so the count of
+columns never changes as you navigate.
 
 ```js
 picker.goTo("2026-12-08");   // bring a date into view and consult it
@@ -242,17 +253,60 @@ setter rejects an impossible civil date such as `2026-02-31T10:00`; a malformed
 `value` attribute is ignored and reads as empty, so imperfect markup never
 breaks the element upgrade.
 
-### Open, empty and closed days
+### Hidden days, closed days, empty days
 
-Three cases stay distinct:
+Three separate ideas, deliberately not merged:
 
-- slots present → normal availability;
-- `slots: []`, open → `messages.empty` ("No availability");
-- `slots: []`, `closed: true` → `messages.closed` ("Closed").
+| | what it is | column? |
+| --- | --- | --- |
+| `hiddenDays` | calendar structure, known before loading | never rendered |
+| `closed: true` | business state of a real date | rendered, says `Closed` |
+| `slots: []` | open date with nothing bookable | rendered, says `No availability` |
 
-`closed` is a normal day state set by the application (weekend, weekly
-closure); the component computes no opening hours. Closed days stay in the
-civil window and are stylable through `[data-closed]`:
+#### hiddenDays
+
+```js
+picker.hiddenDays = [0, 6]; // Sunday and Saturday are never a column
+```
+
+Weekday indexes match `Date#getDay` (0 = Sunday). Because the rule is known
+before any request, `dayCount` keeps meaning "columns": a hidden weekday widens
+the civil envelope instead of eating a column.
+
+```js
+picker.configure({ start: "2026-11-19", dayCount: 5, hiddenDays: [0, 6] });
+picker.range; // { start: "2026-11-19", end: "2026-11-25", dayCount: 5 }
+```
+
+Five columns (Thu, Fri, Mon, Tue, Wed) over a seven-day envelope; `source.load()`
+receives `2026-11-19` to `2026-11-25`. `previous()`/`next()` step by five
+projected days, so the grid never changes shape. A `start` landing on a hidden
+weekday resolves forward to the first projected day, and `activeDate` resolves
+to the next projected column. It is a property, like `days` and `source`, with no
+matching attribute; `configure({ hiddenDays })` applies it inside a transaction.
+Anything but integers `0`–`6` throws, and hiding all seven weekdays is rejected.
+
+This is what makes a sparse weekly schedule usable. A practitioner working only
+Tuesdays and Thursdays is calendar structure, not availability:
+
+```js
+picker.configure({ dayCount: 5, hiddenDays: [0, 1, 3, 5, 6] });
+picker.range.dayCount; // 5 columns: Tue, Thu, Tue, Thu, Tue
+picker.range;          // spanning about three weeks of civil time
+```
+
+Five columns are five real opening days, instead of a grid mostly made of
+closed ones, and `next()` moves to the five following opening days. Without
+`hiddenDays` the same consumer would have to page through weeks to find two
+bookable columns.
+
+Combined with `responsive`, this is what makes a narrow screen usable.
+`day-count` is a ceiling, and the width resolves it: a phone may only fit two
+columns, but they are two real opening days rather than two arbitrary civil
+days. Width, bounds and `hiddenDays` are all resolved before the request, so the
+capacity is known before any data arrives and a response can never change it.
+
+#### closed
 
 ```js
 picker.days = [{ date: "2026-11-22", slots: [], closed: true }];
@@ -264,32 +318,18 @@ slot-picker .sp-day[data-closed] {
 }
 ```
 
+`closed` is set by the application (a holiday, an exceptional closure); the
+component computes no opening hours and never derives a recurrence from the
+data. It is a rendered state, exactly like `notice`: loaded data can never add
+or remove a column, so a closed day keeps its place and explains why there is
+nothing that day. A window made only of closed days still renders its columns.
+
 `notice` remains reserved for exceptional information and may coexist with
 `closed`. A closed day carrying slots is invalid input and is rejected by
 normalization.
 
-`closed-days="hide"` drops closed days from the projection without changing the
-civil range:
-
-```html
-<slot-picker closed-days="hide" start="2026-11-21" day-count="5"></slot-picker>
-```
-
-```js
-picker.range; // still { start: "2026-11-21", end: "2026-11-25", dayCount: 5 }
-```
-
-Hiding a closed day does not extend the civil range to compensate for the
-hidden column: `day-count="5"` with two closed days renders three columns.
-`range`, `visibleDayCount`, `previous()`/`next()`, `goTo()` and `source.load()`
-stay civil, and toggling `closed-days` never reloads the source. In
-`layout="day"`, a closed day that is the consulted `activeDate` stays visible
-until another day is activated, so data arrival never moves `activeDate`. A
-window that is closed in its entirety renders the range empty state with
-`messages.closedRange`.
-
 To jump between windows by real availability, let the source expose `next()`
-and call `goToNextAvailability()`; the civil shape of a window never changes.
+and call `goToNextAvailability()`; the shape of a window never changes.
 
 ## Per-slot presentation
 

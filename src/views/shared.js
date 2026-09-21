@@ -3,7 +3,7 @@ import { slotValue } from "../model.js";
 
 /** @typedef {import("../model.js").Slot} Slot */
 /** @typedef {{oneSlot:string,manySlots:string}} SlotCountMessages */
-/** @typedef {{rangeEmptyTitle:string,rangeEmptyDescription:string,rangeEmptyNext:string,nextAvailability:string,closedRange:string}} RangeEmptyMessages */
+/** @typedef {{rangeEmptyTitle:string,rangeEmptyDescription:string,rangeEmptyNext:string,nextAvailability:string}} RangeEmptyMessages */
 
 /** @type {Record<string,string>} */
 const ENTITIES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
@@ -121,9 +121,12 @@ export function slotCountText(count, messages) {
  * the immediately following window, while `next availability` (opt-in via
  * `next-availability`) is the contextual business search that may skip
  * several windows through the source. They are never merged.
- * @param {{start:string,end:string,invalid:boolean,canNext:boolean,nextAvailability:boolean,closed:boolean,locale:string,messages:RangeEmptyMessages}} options
+ *
+ * A closed day is day content, so a window holding one never reaches this
+ * state: it keeps its columns and says "Closed" in each of them.
+ * @param {{start:string,end:string,invalid:boolean,canNext:boolean,nextAvailability:boolean,locale:string,messages:RangeEmptyMessages}} options
  */
-export function rangeEmpty({ start, end, invalid, canNext, nextAvailability, closed, locale, messages }) {
+export function rangeEmpty({ start, end, invalid, canNext, nextAvailability, locale, messages }) {
   const showDescription = !invalid && Boolean(start);
   let description = "";
   if (showDescription) {
@@ -149,10 +152,8 @@ export function rangeEmpty({ start, end, invalid, canNext, nextAvailability, clo
     );
   }
   const action = actions.length ? `<div class="sp-range-empty-actions">${actions.join("")}</div>` : "";
-  // A wholly closed civil range is not the same statement as "no availability".
-  const title = closed ? messages.closedRange : messages.rangeEmptyTitle;
   return `<div class="sp-range-empty">
-    <strong class="sp-range-empty-title">${escapeHtml(title)}</strong>
+    <strong class="sp-range-empty-title">${escapeHtml(messages.rangeEmptyTitle)}</strong>
     ${description}
     ${action}
   </div>`;

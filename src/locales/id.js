@@ -8,7 +8,6 @@ export default {
   loading: "Memuat ketersediaan",
   empty: "Tidak ada ketersediaan",
   closed: "Tutup",
-  closedRange: "Tutup selama periode ini",
   rangeEmptyTitle: "Tidak ada ketersediaan pada periode ini",
   rangeEmptyDescription: "Dari {start} hingga {end}",
   rangeEmptyNext: "Lihat periode berikutnya",

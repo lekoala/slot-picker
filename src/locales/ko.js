@@ -8,7 +8,6 @@ export default {
   loading: "가능한 시간을 불러오는 중",
   empty: "가능한 시간 없음",
   closed: "휴진",
-  closedRange: "이 기간 동안 휴진",
   rangeEmptyTitle: "이 기간에는 예약 가능한 시간이 없습니다",
   rangeEmptyDescription: "{start}부터 {end}까지",
   rangeEmptyNext: "다음 기간 보기",

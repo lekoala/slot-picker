@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import {
-  boundedDayCount,
   clampStart,
   collapsedDays,
   ensureVisible,
@@ -11,10 +10,14 @@ import {
   moveFocus,
   normalizeBreakpoints,
   normalizeDays,
+  normalizeHiddenDays,
+  projectDates,
   RESPONSIVE_BREAKPOINTS,
+  rangeDetail,
   resolveActiveDate,
   resolveVisibleDayCount,
   slotValue,
+  stepStart,
   visibleDays,
 } from "../../src/model.js";
 
@@ -65,9 +68,13 @@ describe("slot model", () => {
     );
   });
 
-  test("fills empty visible days", () => {
-    const days = visibleDays([{ date: "2026-11-18", slots: [] }], "2026-11-17", 3);
-    expect(days.map((day) => day.date)).toEqual(["2026-11-17", "2026-11-18", "2026-11-19"]);
+  test("fills empty visible days from the projected dates", () => {
+    const dates = ["2026-11-17", "2026-11-18", "2026-11-19"];
+    const days = visibleDays([{ date: "2026-11-18", slots: [] }], dates);
+    expect(days.map((day) => day.date)).toEqual(dates);
+    // A day the source never mentioned still gets a column.
+    const sparse = visibleDays([{ date: "2026-11-18", slots: [] }], ["2026-11-20", "2026-11-23"]);
+    expect(sparse.map((day) => day.date)).toEqual(["2026-11-20", "2026-11-23"]);
   });
 
   test("uses local datetime values", () => {
@@ -94,10 +101,19 @@ describe("slot model", () => {
   });
 
   test("resolveActiveDate is civil-only", () => {
-    expect(resolveActiveDate("2026-11-17", 5, "")).toBe("2026-11-17");
-    expect(resolveActiveDate("2026-11-17", 5, "2026-11-19")).toBe("2026-11-19");
-    expect(resolveActiveDate("2026-11-17", 5, "2026-11-10")).toBe("2026-11-17");
-    expect(resolveActiveDate("2026-11-17", 5, "2026-12-01")).toBe("2026-11-21");
+    const dates = projectDates("2026-11-17", 5);
+    expect(resolveActiveDate(dates, "")).toBe("2026-11-17");
+    expect(resolveActiveDate(dates, "2026-11-19")).toBe("2026-11-19");
+    expect(resolveActiveDate(dates, "2026-11-10")).toBe("2026-11-17");
+    expect(resolveActiveDate(dates, "2026-12-01")).toBe("2026-11-21");
+    expect(resolveActiveDate([], "2026-11-19")).toBe("");
+  });
+
+  test("resolveActiveDate lands on the next column when the day is hidden", () => {
+    // Mon 2026-11-16 to Fri 2026-11-20, weekend hidden: Saturday is not a column.
+    const dates = projectDates("2026-11-16", 5, [0, 6]);
+    expect(resolveActiveDate(dates, "2026-11-18")).toBe("2026-11-18");
+    expect(resolveActiveDate(projectDates("2026-11-16", 7, [0, 6]), "2026-11-21")).toBe("2026-11-23");
   });
 
   test("skips disabled slots", () => {
@@ -152,14 +168,75 @@ describe("bounded and responsive navigation", () => {
     expect(isValidRange("2026-11-21", "2026-11-17")).toBe(false);
   });
 
-  test("boundedDayCount shrinks to the available interval", () => {
-    expect(boundedDayCount(5, "2026-11-17", "2026-11-19")).toBe(3);
-    expect(boundedDayCount(5, "2026-11-17", "2026-11-21")).toBe(5);
-    expect(boundedDayCount(5, "", "")).toBe(5);
+  test("projectDates returns dayCount consecutive civil days by default", () => {
+    expect(projectDates("2026-11-17", 3)).toEqual(["2026-11-17", "2026-11-18", "2026-11-19"]);
+    expect(rangeDetail(projectDates("2026-11-17", 5))).toEqual({
+      start: "2026-11-17",
+      end: "2026-11-21",
+      dayCount: 5,
+    });
+    expect(rangeDetail([])).toEqual({ start: "", end: "", dayCount: 0 });
   });
 
-  test("boundedDayCount is 0 for invalid bounds", () => {
-    expect(boundedDayCount(5, "2026-11-21", "2026-11-17")).toBe(0);
+  test("projectDates shrinks only when the bounded interval is too short", () => {
+    expect(projectDates("2026-11-17", 5, [], "2026-11-17", "2026-11-19")).toHaveLength(3);
+    // Sitting at the upper bound is not a reason to lose a column.
+    expect(projectDates("2026-12-01", 5, [], "2026-11-17", "2026-11-21")).toEqual([
+      "2026-11-17",
+      "2026-11-18",
+      "2026-11-19",
+      "2026-11-20",
+      "2026-11-21",
+    ]);
+    // Invalid bounds resolve to no projection at all, never a magic window.
+    expect(projectDates("2026-11-17", 5, [], "2026-11-21", "2026-11-17")).toEqual([]);
+    expect(projectDates("2026-11-17", 0)).toEqual([]);
+  });
+
+  test("hidden weekdays widen the envelope instead of eating a column", () => {
+    // Mon 2026-11-16, weekend hidden: still five columns, envelope Mon to Fri.
+    const week = projectDates("2026-11-16", 5, [0, 6]);
+    expect(week).toEqual(["2026-11-16", "2026-11-17", "2026-11-18", "2026-11-19", "2026-11-20"]);
+    // Starting on a Thursday keeps five columns across the weekend.
+    const across = projectDates("2026-11-19", 5, [0, 6]);
+    expect(across).toEqual(["2026-11-19", "2026-11-20", "2026-11-23", "2026-11-24", "2026-11-25"]);
+    expect(rangeDetail(across)).toEqual({
+      start: "2026-11-19",
+      end: "2026-11-25",
+      dayCount: 5,
+    });
+    // A start on a hidden weekday moves to the first projected day.
+    expect(projectDates("2026-11-21", 2, [0, 6])[0]).toBe("2026-11-23");
+  });
+
+  test("normalizeHiddenDays validates weekday indexes", () => {
+    expect(normalizeHiddenDays(null)).toEqual([]);
+    expect(normalizeHiddenDays([6, 0, 6])).toEqual([0, 6]);
+    expect(() => normalizeHiddenDays([7])).toThrow(/0 \(Sunday\) to 6 \(Saturday\)/);
+    expect(() => normalizeHiddenDays([1.5])).toThrow(/0 \(Sunday\) to 6 \(Saturday\)/);
+    expect(() => normalizeHiddenDays("0,6")).toThrow(/must be an array/);
+    // Nothing could ever be projected.
+    expect(() => normalizeHiddenDays([0, 1, 2, 3, 4, 5, 6])).toThrow(/every weekday/);
+  });
+
+  test("stepStart moves by projected days, not civil days", () => {
+    const week = projectDates("2026-11-16", 5, [0, 6]);
+    expect(stepStart(week, 1, [0, 6])).toBe("2026-11-23");
+    expect(stepStart(projectDates("2026-11-23", 5, [0, 6]), -1, [0, 6])).toBe("2026-11-16");
+    // Without hidden days it is the plain adjacent civil window.
+    expect(stepStart(projectDates("2026-11-17", 5), 1)).toBe("2026-11-22");
+    expect(stepStart(projectDates("2026-11-17", 5), -1)).toBe("2026-11-12");
+    // At the bound the window stays where it is.
+    expect(
+      stepStart(
+        projectDates("2026-11-17", 5, [], "2026-11-17", "2026-11-21"),
+        1,
+        [],
+        "2026-11-17",
+        "2026-11-21",
+      ),
+    ).toBe("2026-11-17");
+    expect(stepStart([], 1)).toBe("");
   });
 
   test("resolveVisibleDayCount follows the ladder and caps at the request", () => {
@@ -194,6 +271,8 @@ describe("bounded and responsive navigation", () => {
     expect(clampStart("2026-12-01", "2026-11-17", "2026-11-21", 5)).toBe("2026-11-17");
     // Window wider than the interval: pin to min, never below it.
     expect(clampStart("2026-11-19", "2026-11-17", "2026-11-19", 5)).toBe("2026-11-17");
+    // A hidden start resolves forward to the first projected day.
+    expect(clampStart("2026-11-21", "", "", 5, [0, 6])).toBe("2026-11-23");
   });
 
   test("ensureVisible keeps start when the date is visible", () => {
@@ -210,6 +289,16 @@ describe("bounded and responsive navigation", () => {
   test("ensureVisible respects bounds when aligning", () => {
     expect(ensureVisible("2026-11-21", 2, "2026-11-21", "2026-11-17", "2026-11-21")).toBe("2026-11-20");
     expect(ensureVisible("2026-11-17", 5, "2026-11-17", "2026-11-17", "2026-11-19")).toBe("2026-11-17");
+  });
+
+  test("ensureVisible aligns on projected days when weekdays are hidden", () => {
+    // Mon..Fri window; a date on the following Tuesday pulls the window
+    // forward by projected days only.
+    expect(ensureVisible("2026-11-16", 5, "2026-11-24", "", "", [0, 6])).toBe("2026-11-18");
+    // A hidden target resolves to the next projected day before aligning.
+    expect(ensureVisible("2026-11-16", 5, "2026-11-22", "", "", [0, 6])).toBe("2026-11-17");
+    // Already projected: the window does not move.
+    expect(ensureVisible("2026-11-16", 5, "2026-11-20", "", "", [0, 6])).toBe("2026-11-16");
   });
 
   test("hasSlots and hasDayContent differ on notice-only and closed days", () => {

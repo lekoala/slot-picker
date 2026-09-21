@@ -8,7 +8,6 @@ export default {
   loading: "Uygunluk yükleniyor",
   empty: "Uygun zaman yok",
   closed: "Kapalı",
-  closedRange: "Bu dönemde kapalı",
   rangeEmptyTitle: "Bu dönemde uygun zaman yok",
   rangeEmptyDescription: "{start} ile {end} arası",
   rangeEmptyNext: "Sonraki dönemi gör",

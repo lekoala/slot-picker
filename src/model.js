@@ -1,4 +1,4 @@
-import { addDays, compareDates, daysBetween, isDateValue, rangeEnd } from "./date.js";
+import { addDays, compareDates, isDateValue, weekdayIndex } from "./date.js";
 
 const TIME_RE = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
@@ -24,8 +24,10 @@ export const RESPONSIVE_BREAKPOINTS = Object.freeze([
  */
 /** @typedef {{label:string,description?:string,meta?:unknown}} DayNotice */
 /**
- * `closed` is a normal day state (weekend, weekly closure), not an exception:
- * it stays distinct from `notice` and from an open day with no availability.
+ * `closed` is the business state of one date: it exists in the projection,
+ * keeps its column and simply is not open. It is never calendar structure —
+ * a weekday that should not be a column at all belongs to `hiddenDays` — and
+ * stays distinct from `notice` and from an open day with no availability.
  * @typedef {{date:string,slots:Slot[],closed?:boolean,notice?:DayNotice}} SlotDay
  */
 
@@ -108,18 +110,15 @@ export function normalizeDays(input) {
 
 /**
  * Fill missing days so an empty day remains visible.
+ * The projected dates decide which columns exist; loaded data never does.
  * @param {SlotDay[]} days
- * @param {string} start
- * @param {number} dayCount
+ * @param {string[]} dates
  */
-export function visibleDays(days, start, dayCount) {
+export function visibleDays(days, dates) {
   const normalized = normalizeDays(days);
   const byDate = new Map(normalized.map((day) => [day.date, day]));
 
-  return Array.from({ length: dayCount }, (_, index) => {
-    const date = addDays(start, index);
-    return byDate.get(date) ?? { date, slots: [] };
-  });
+  return dates.map((date) => byDate.get(date) ?? { date, slots: [] });
 }
 
 /**
@@ -151,18 +150,108 @@ export function isValidRange(min, max) {
 }
 
 /**
- * Reduce a requested day count to the days actually available inside the
- * bounds. Step 2 of the pipeline: requested count -> bounded count.
- * Invalid bounds (`min > max`) resolve to 0, never a magic window.
- * @param {number} dayCount
+ * Keep a civil date inside an inclusive interval. Empty bounds are open.
+ * @param {string} date
  * @param {string} min
  * @param {string} max
  */
-export function boundedDayCount(dayCount, min, max) {
-  const requested = Math.max(1, Number(dayCount) || 1);
-  if (!min || !max) return requested;
-  if (compareDates(min, max) > 0) return 0;
-  return Math.min(requested, daysBetween(min, max) + 1);
+export function clampDate(date, min, max) {
+  if (min && compareDates(date, min) < 0) return min;
+  if (max && compareDates(date, max) > 0) return max;
+  return date;
+}
+
+/**
+ * Weekdays that are never projected as a column, as `Date#getDay` indexes
+ * (0 = Sunday). This is calendar structure, known before any data is loaded:
+ * it is not an availability rule and never inspects a `SlotDay`.
+ * @param {readonly number[]|null|undefined} input
+ * @returns {number[]}
+ */
+export function normalizeHiddenDays(input) {
+  if (input === null || input === undefined) return [];
+  if (!Array.isArray(input)) throw new TypeError("hiddenDays must be an array of weekday indexes");
+  const indexes = input.map((value) => {
+    const index = Number(value);
+    if (!Number.isInteger(index) || index < 0 || index > 6) {
+      throw new TypeError("hiddenDays entries must be integers from 0 (Sunday) to 6 (Saturday)");
+    }
+    return index;
+  });
+  const hidden = [...new Set(indexes)].sort((a, b) => a - b);
+  // Hiding every weekday would leave no day to project at all.
+  if (hidden.length === 7) throw new TypeError("hiddenDays cannot hide every weekday");
+  return hidden;
+}
+
+/**
+ * Collect up to `count` projected days walking one civil day at a time.
+ * `step` is 1 or -1; `bound` is the civil date the walk must not cross.
+ * @param {string} from
+ * @param {number} count
+ * @param {number[]} hidden
+ * @param {1|-1} step
+ * @param {string} bound
+ */
+function walk(from, count, hidden, step, bound) {
+  /** @type {string[]} */
+  const dates = [];
+  let date = from;
+  // `hidden` can never hold all seven weekdays, so the walk always advances.
+  while (dates.length < count) {
+    if (bound && (step > 0 ? compareDates(date, bound) > 0 : compareDates(date, bound) < 0)) break;
+    if (!hidden.includes(weekdayIndex(date))) dates.push(date);
+    date = addDays(date, step);
+  }
+  return dates;
+}
+
+/**
+ * The projection: the civil dates actually rendered as columns.
+ *
+ * `dayCount` counts columns, never civil days. A hidden weekday widens the
+ * civil envelope instead of eating a column, so at equal width and bounds a
+ * window always keeps its capacity. Only `min`/`max` can return fewer dates
+ * than requested, because the interval itself holds too few projectable days.
+ * @param {string} start
+ * @param {number} dayCount
+ * @param {readonly number[]} [hiddenDays]
+ * @param {string} [min]
+ * @param {string} [max]
+ * @returns {string[]}
+ */
+export function projectDates(start, dayCount, hiddenDays = [], min = "", max = "") {
+  const count = Math.max(0, Math.trunc(Number(dayCount) || 0));
+  if (!count || !isDateValue(start) || !isValidRange(min, max)) return [];
+  const hidden = normalizeHiddenDays(hiddenDays);
+  const from = clampDate(start, min, max);
+  const forward = walk(from, count, hidden, 1, max);
+  if (forward.length === count) return forward;
+  // The upper bound truncated the window: recover the missing columns before
+  // `from`, so bounds reduce the capacity only when the interval really is
+  // too short, never because the window happens to sit at the end.
+  const backward = walk(addDays(forward[0] ?? from, -1), count - forward.length, hidden, -1, min);
+  return [...backward.reverse(), ...forward];
+}
+
+/**
+ * Adjacent window, stepping by projected days so navigation preserves the
+ * column capacity. `direction` is 1 or -1.
+ * @param {string[]} dates
+ * @param {1|-1} direction
+ * @param {readonly number[]} [hiddenDays]
+ * @param {string} [min]
+ * @param {string} [max]
+ */
+export function stepStart(dates, direction, hiddenDays = [], min = "", max = "") {
+  if (!dates.length) return "";
+  const hidden = normalizeHiddenDays(hiddenDays);
+  const count = dates.length;
+  if (direction > 0) {
+    return projectDates(addDays(dates[count - 1], 1), count, hidden, min, max)[0] ?? dates[0];
+  }
+  const backward = walk(addDays(dates[0], -1), count, hidden, -1, min);
+  return projectDates(backward[backward.length - 1] ?? dates[0], count, hidden, min, max)[0] ?? dates[0];
 }
 
 /**
@@ -196,43 +285,43 @@ export function resolveVisibleDayCount(dayCount, width, breakpoints = RESPONSIVE
 }
 
 /**
- * Keep a window inside its bounds without shrinking it below the requested
- * count unless the interval itself is shorter.
+ * First projected day of the window `start` belongs to, inside the bounds.
  * @param {string} start
  * @param {string} min
  * @param {string} max
  * @param {number} dayCount
+ * @param {readonly number[]} [hiddenDays]
  */
-export function clampStart(start, min, max, dayCount) {
-  let next = start;
-  if (min && compareDates(next, min) < 0) next = min;
-  const count = Math.max(1, dayCount);
-  if (max) {
-    const latest = addDays(max, -(count - 1));
-    if (compareDates(latest, min || next) < 0) next = min || latest;
-    else if (compareDates(next, latest) > 0) next = latest;
-  }
-  return next;
+export function clampStart(start, min, max, dayCount, hiddenDays = []) {
+  return projectDates(start, dayCount, hiddenDays, min, max)[0] ?? clampDate(start, min, max);
 }
 
 /**
- * Stable range adjustment: keep `start` when `date` is already visible,
+ * Stable range adjustment: keep `start` when `date` is already projected,
  * otherwise shift just enough to bring `date` back into the window.
- * Shared by resize, `goTo`, and min/max/day-count changes.
+ * Shared by resize, `goTo`, and min/max/day-count/hidden-day changes.
  * @param {string} start
  * @param {number} dayCount
  * @param {string} date
  * @param {string} min
  * @param {string} max
+ * @param {readonly number[]} [hiddenDays]
  */
-export function ensureVisible(start, dayCount, date, min, max) {
+export function ensureVisible(start, dayCount, date, min, max, hiddenDays = []) {
+  const hidden = normalizeHiddenDays(hiddenDays);
   const count = Math.max(1, dayCount);
-  const bounded = clampStart(start, min, max, count);
-  if (!isDateValue(date)) return bounded;
-  const end = rangeEnd(bounded, count);
-  if (compareDates(date, bounded) >= 0 && compareDates(date, end) <= 0) return bounded;
-  const candidate = compareDates(date, bounded) < 0 ? date : addDays(date, -(count - 1));
-  return clampStart(candidate, min, max, count);
+  const dates = projectDates(start, count, hidden, min, max);
+  if (!dates.length) return clampDate(start, min, max);
+  const first = dates[0];
+  if (!isDateValue(date)) return first;
+  if (compareDates(date, first) < 0) return projectDates(date, count, hidden, min, max)[0] ?? first;
+  if (compareDates(date, dates[dates.length - 1]) <= 0) return first;
+  // After the window: align it on the first projected day at or after `date`,
+  // without moving further than necessary.
+  const target = walk(date, 1, hidden, 1, max)[0];
+  if (!target) return first;
+  const backward = walk(target, count, hidden, -1, min);
+  return projectDates(backward[backward.length - 1] ?? target, count, hidden, min, max)[0] ?? first;
 }
 
 /**
@@ -257,27 +346,32 @@ export function hasDayContent(days) {
 }
 
 /**
- * @param {string} start
- * @param {number} dayCount
+ * Public range of a projection: first and last rendered day plus the number
+ * of columns. `end` is the last projected day, so the civil envelope
+ * (`start` to `end`) may span more days than `dayCount` when weekdays are
+ * hidden. That envelope is exactly what a source has to load.
+ * @param {string[]} dates
  */
-export function rangeDetail(start, dayCount) {
-  return { start, end: rangeEnd(start, dayCount), dayCount };
+export function rangeDetail(dates) {
+  if (!dates.length) return { start: "", end: "", dayCount: 0 };
+  return { start: dates[0], end: dates[dates.length - 1], dayCount: dates.length };
 }
 
 /**
- * Civil-only active day resolution.
- * Loaded slots never influence the consulted day:
- * absent/invalid maps to start, out-of-range clamps to the visible range.
- * @param {string} start
- * @param {number} dayCount
+ * Civil-only active day resolution against the projected dates.
+ * Loaded slots never influence the consulted day: absent/invalid maps to the
+ * first column, out-of-range clamps to the window, and a date falling on a
+ * hidden weekday resolves to the next projected column.
+ * @param {string[]} dates
  * @param {string} activeDate
  */
-export function resolveActiveDate(start, dayCount, activeDate) {
-  if (!isDateValue(activeDate)) return start;
-  if (compareDates(activeDate, start) < 0) return start;
-  const end = rangeEnd(start, dayCount);
-  if (compareDates(activeDate, end) > 0) return end;
-  return activeDate;
+export function resolveActiveDate(dates, activeDate) {
+  if (!dates.length) return "";
+  const last = dates[dates.length - 1];
+  if (!isDateValue(activeDate)) return dates[0];
+  if (compareDates(activeDate, dates[0]) <= 0) return dates[0];
+  if (compareDates(activeDate, last) >= 0) return last;
+  return dates.find((date) => compareDates(date, activeDate) >= 0) ?? last;
 }
 
 /**
