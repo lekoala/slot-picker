@@ -1,5 +1,5 @@
 import { compareDates, isDateValue, todayValue } from "./date.js";
-import { resolveMessages } from "./messages.js";
+import { resolveLocale, resolveMessages } from "./messages.js";
 import {
   clampDate,
   clampStart,
@@ -145,12 +145,24 @@ export class SlotPickerElement extends HTMLElement {
 
     // Without a ResizeObserver the projection width can never be measured
     // accurately; fall back to the host width so `responsive` still resolves.
-    this.#measuredWidth = typeof ResizeObserver === "undefined" ? this.getBoundingClientRect().width : null;
+    // The measured width survives reconnects: re-measuring from `null` would
+    // redo the initial full-`dayCount` request on every reconnection.
+    if (this.#measuredWidth === null && typeof ResizeObserver === "undefined") {
+      this.#measuredWidth = this.getBoundingClientRect().width;
+    }
     if (!this.#resizeObserver && typeof ResizeObserver !== "undefined") {
       this.#resizeObserver = new ResizeObserver((entries) => this.#onResize(entries));
     }
     this.#resizeObserver?.observe(this);
 
+    // With `responsive` the capacity is unknown until the observer answers.
+    // Committing now would render and fetch the full `dayCount` window, then
+    // redo both once measured (double request + layout jump). The first
+    // observer callback arrives before the frame paints, so waiting for it
+    // keeps a single request with the resolved capacity (U3/U10).
+    if (this.responsive && typeof ResizeObserver !== "undefined" && this.#measuredWidth === null) {
+      return;
+    }
     this.#reconcile({ pinActive: false });
   }
 
@@ -194,7 +206,8 @@ export class SlotPickerElement extends HTMLElement {
 
   /** @param {number} value */
   set dayCount(value) {
-    const next = Math.max(1, Math.min(14, Number(value) || 5));
+    const numeric = Number(value);
+    const next = Number.isFinite(numeric) ? Math.max(1, Math.min(14, Math.trunc(numeric))) : 5;
     this.setAttribute("day-count", String(next));
   }
 
@@ -379,7 +392,9 @@ export class SlotPickerElement extends HTMLElement {
   }
 
   set maxVisibleRows(value) {
-    this.setAttribute("max-visible-rows", String(Math.max(1, Number(value) || 5)));
+    const numeric = Number(value);
+    const next = Number.isFinite(numeric) ? Math.max(1, Math.trunc(numeric)) : 5;
+    this.setAttribute("max-visible-rows", String(next));
   }
 
   /** @returns {SlotDay[]} */
@@ -407,6 +422,8 @@ export class SlotPickerElement extends HTMLElement {
   /**
    * Instance overrides only. Global defaults from `setDefaultMessages()` are
    * resolved at render time, so they also reach already-created instances.
+   * Non-string overrides are ignored, so a missing translation key never
+   * wipes out an accessible default.
    * @param {Partial<typeof import("./messages.js").DEFAULT_MESSAGES>|null} value
    */
   set messages(value) {
@@ -414,13 +431,26 @@ export class SlotPickerElement extends HTMLElement {
     this.#queueRender();
   }
 
+  /** Resolved effective messages (defaults + globals + instance overrides). */
+  get messages() {
+    return { ...resolveMessages(this.#messages) };
+  }
+
   /**
    * Locale used for `Intl` formatting. `locale` wins over the native `lang`,
    * then the document language, then the browser language.
+   * Resolved through the same chain with `Intl.getCanonicalLocales`, so an
+   * invalid tag (for example `"en_US"`) falls back instead of throwing
+   * inside `#render` and emptying the component.
    */
   get locale() {
-    const value = this.getAttribute("locale") || this.lang;
-    return value || document.documentElement.lang || navigator.language || "en";
+    return resolveLocale(
+      this.getAttribute("locale") || "",
+      this.lang || "",
+      (typeof document !== "undefined" && document.documentElement.lang) || "",
+      (typeof navigator !== "undefined" && navigator.language) || "",
+      "en",
+    );
   }
 
   set locale(value) {
@@ -475,8 +505,24 @@ export class SlotPickerElement extends HTMLElement {
     if (!this.visibleDayCount) return null;
     const after = options.after ?? this.range.end;
     if (this.#sourceController.hasNext) {
-      const date = await this.#sourceController.next({ after });
-      if (date && isDateValue(date)) {
+      let date;
+      try {
+        date = await this.#sourceController.next({ after });
+      } catch (error) {
+        // A failing `next()` must behave like a failing `load()`: publish
+        // the error state and emit `loaderror` instead of escaping as an
+        // unhandled rejection from the availability button.
+        if (error instanceof DOMException && error.name === "AbortError") return null;
+        this.#error = error;
+        this.#queueRender();
+        this.dispatchEvent(
+          new CustomEvent("loaderror", { detail: { ...this.range, after, kind: "next", error } }),
+        );
+        return null;
+      }
+      // The contract is a date after `after`: an older proposal is a source
+      // bug and must never move the window backwards.
+      if (date && isDateValue(date) && compareDates(date, after) > 0) {
         // Return the destination actually reached: `goTo` clamps to bounds, so
         // the source proposal may differ from the resolved active date.
         return this.goTo(date) || null;
@@ -498,7 +544,11 @@ export class SlotPickerElement extends HTMLElement {
     this.#mutate(() => {
       if (options.min !== undefined) this.min = options.min;
       if (options.max !== undefined) this.max = options.max;
-      if (options.start !== undefined) this.start = options.start;
+      // `start` is written raw: the property setter would clamp against the
+      // *previous* capacity, and near `max` that pushback is never undone
+      // once `dayCount`/`hiddenDays` shrink the window. The trailing
+      // `#reconcile` clamps once with the final capacity instead.
+      if (options.start !== undefined) this.setAttribute("start", options.start);
       if (options.dayCount !== undefined) this.dayCount = options.dayCount;
       if (options.layout !== undefined) this.layout = options.layout;
       if (options.value !== undefined) this.value = options.value;
@@ -679,9 +729,13 @@ export class SlotPickerElement extends HTMLElement {
     // Capacity follows the projection's own width, not the host: the nav rail
     // is chrome and must not inflate the resolved day count.
     const width = this.#contentWidth() ?? hostWidth;
+    // A deferred first commit (responsive, never measured) must reconcile
+    // even when the measured capacity happens to equal `dayCount`: without
+    // it the initial render and load would never happen.
+    const pendingFirst = this.#lastRange === null;
     const previous = this.visibleDayCount;
     this.#measuredWidth = width;
-    if (this.visibleDayCount !== previous) this.#reconcile({ pinActive: true });
+    if (pendingFirst || this.visibleDayCount !== previous) this.#reconcile({ pinActive: true });
   }
 
   /** Width actually available to the projection, inside the nav rail. */
@@ -868,7 +922,7 @@ export class SlotPickerElement extends HTMLElement {
     const status = this.#loading
       ? `<div class="sp-status sp-visually-hidden" role="status">${escapeHtml(messages.loading)}</div>`
       : this.#error
-        ? `<div class="sp-status sp-status-error" role="status">${escapeHtml(String(this.#error))}</div>`
+        ? `<div class="sp-status sp-status-error" role="status">${escapeHtml(messages.error)}</div>`
         : "";
 
     // `home` is a shortcut to a reference date, not the mirror of `next`. When
@@ -930,10 +984,6 @@ export class SlotPickerElement extends HTMLElement {
       // hand focus to the roving slot instead of losing it with the button.
       this.#pendingFocus = '.sp-slot[tabindex="0"]';
       return this.goHome();
-    }
-    if (target.closest(".sp-nav-availability")) {
-      void this.goToNextAvailability();
-      return;
     }
     if (target.closest(".sp-range-empty-availability")) {
       void this.goToNextAvailability();

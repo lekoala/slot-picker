@@ -6,6 +6,7 @@ export default {
   showMore: "Voir plus de disponibilités",
   showLess: "Voir moins",
   loading: "Chargement des disponibilités",
+  error: "Les disponibilités n'ont pas pu être chargées",
   empty: "Aucune disponibilité",
   closed: "Fermé",
   rangeEmptyTitle: "Aucun créneau disponible sur cette période",

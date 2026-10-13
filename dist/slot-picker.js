@@ -6,7 +6,7 @@
     if (!DATE_RE.test(value))
       return false;
     const [year, month, day] = value.split("-").map(Number);
-    const date = new Date(Date.UTC(year, month - 1, day));
+    const date = fromCivilFields(year, month, day);
     return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
   }
   function parts(value) {
@@ -15,9 +15,15 @@
     const [year, month, day] = value.split("-").map(Number);
     return { year, month, day };
   }
+  function fromCivilFields(year, month, day) {
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (year >= 0 && year < 100)
+      date.setUTCFullYear(date.getUTCFullYear() - 1900);
+    return date;
+  }
   function addDays(value, amount) {
     const { year, month, day } = parts(value);
-    const date = new Date(Date.UTC(year, month - 1, day + amount));
+    const date = fromCivilFields(year, month, day + amount);
     return [
       String(date.getUTCFullYear()).padStart(4, "0"),
       String(date.getUTCMonth() + 1).padStart(2, "0"),
@@ -32,7 +38,7 @@
   }
   function toUtcDate(value) {
     const { year, month, day } = parts(value);
-    return new Date(Date.UTC(year, month - 1, day));
+    return fromCivilFields(year, month, day);
   }
   function todayValue() {
     const now = new Date;
@@ -52,6 +58,7 @@
     showMore: "Show more availability",
     showLess: "Show less",
     loading: "Loading availability",
+    error: "Availability could not be loaded",
     empty: "No availability",
     closed: "Closed",
     rangeEmptyTitle: "No availability in this period",
@@ -62,8 +69,30 @@
     days: "Days"
   };
   var defaults = { ...DEFAULT_MESSAGES };
+  function cleanOverrides(messages) {
+    if (!messages || typeof messages !== "object")
+      return {};
+    const cleaned = {};
+    for (const [key, value] of Object.entries(messages)) {
+      if (typeof value === "string")
+        cleaned[key] = value;
+    }
+    return cleaned;
+  }
   function resolveMessages(messages) {
-    return { ...defaults, ...messages ?? {} };
+    return { ...defaults, ...cleanOverrides(messages) };
+  }
+  function resolveLocale(...candidates) {
+    for (const candidate of candidates) {
+      if (!candidate || typeof candidate !== "string")
+        continue;
+      try {
+        const canonical = Intl.getCanonicalLocales(candidate);
+        if (canonical.length)
+          return canonical[0];
+      } catch {}
+    }
+    return "en";
   }
 
   // src/model.js
@@ -107,6 +136,15 @@
         if (slot.end && !isTimeValue(slot.end)) {
           throw new TypeError(`Invalid slot end on ${day.date}`);
         }
+        if (slot.end && slot.end.localeCompare(slot.start) <= 0) {
+          throw new TypeError(`Invalid slot end on ${day.date}`);
+        }
+        if (slot.disabled !== undefined && typeof slot.disabled !== "boolean") {
+          throw new TypeError(`Invalid slot disabled on ${day.date}`);
+        }
+        if (slot.description !== undefined && typeof slot.description !== "string") {
+          throw new TypeError(`Invalid slot description on ${day.date}`);
+        }
         if (slot.tone !== undefined && (typeof slot.tone !== "string" || slot.tone.trim() === "")) {
           throw new TypeError(`Invalid slot tone on ${day.date}`);
         }
@@ -116,7 +154,16 @@
         seenStarts.add(slot.start);
         return { ...slot };
       }).sort((a, b) => a.start.localeCompare(b.start));
-      const notice = day.notice && typeof day.notice.label === "string" ? { ...day.notice } : undefined;
+      let notice;
+      if (day.notice != null) {
+        if (typeof day.notice !== "object" || typeof day.notice.label !== "string") {
+          throw new TypeError(`Invalid day notice on ${day.date}`);
+        }
+        if (day.notice.description !== undefined && typeof day.notice.description !== "string") {
+          throw new TypeError(`Invalid day notice on ${day.date}`);
+        }
+        notice = { ...day.notice };
+      }
       if (day.closed !== undefined && typeof day.closed !== "boolean") {
         throw new TypeError(`Invalid day closed on ${day.date}`);
       }
@@ -377,6 +424,10 @@
         if (request !== this.#nextRequest || controller.signal.aborted)
           return null;
         return typeof result === "string" ? result : null;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError")
+          return null;
+        throw error;
       } finally {
         if (this.#nextController === controller)
           this.#nextController = null;
@@ -504,7 +555,7 @@
             slot,
             dayIndex,
             slotIndex,
-            selected: slotVal === value,
+            selected: slotVal === value && !slot.disabled,
             tabbed: slotVal === activeFocus && !slot.disabled
           });
         }).join("");
@@ -584,7 +635,7 @@
           slot,
           dayIndex: activeIndex,
           slotIndex,
-          selected: slotVal === value,
+          selected: slotVal === value && !slot.disabled,
           tabbed: slotVal === activeFocus && !slot.disabled
         });
       }).join("");
@@ -656,11 +707,16 @@
       if (!this.hasAttribute("layout"))
         this.setAttribute("layout", "columns");
       this.#initializing = false;
-      this.#measuredWidth = typeof ResizeObserver === "undefined" ? this.getBoundingClientRect().width : null;
+      if (this.#measuredWidth === null && typeof ResizeObserver === "undefined") {
+        this.#measuredWidth = this.getBoundingClientRect().width;
+      }
       if (!this.#resizeObserver && typeof ResizeObserver !== "undefined") {
         this.#resizeObserver = new ResizeObserver((entries) => this.#onResize(entries));
       }
       this.#resizeObserver?.observe(this);
+      if (this.responsive && typeof ResizeObserver !== "undefined" && this.#measuredWidth === null) {
+        return;
+      }
       this.#reconcile({ pinActive: false });
     }
     disconnectedCallback() {
@@ -693,7 +749,8 @@
       return Number.isFinite(value) ? Math.max(1, Math.min(14, value)) : 5;
     }
     set dayCount(value) {
-      const next = Math.max(1, Math.min(14, Number(value) || 5));
+      const numeric = Number(value);
+      const next = Number.isFinite(numeric) ? Math.max(1, Math.min(14, Math.trunc(numeric))) : 5;
       this.setAttribute("day-count", String(next));
     }
     get hiddenDays() {
@@ -827,7 +884,9 @@
       return Number.isFinite(value) ? Math.max(1, value) : 5;
     }
     set maxVisibleRows(value) {
-      this.setAttribute("max-visible-rows", String(Math.max(1, Number(value) || 5)));
+      const numeric = Number(value);
+      const next = Number.isFinite(numeric) ? Math.max(1, Math.trunc(numeric)) : 5;
+      this.setAttribute("max-visible-rows", String(next));
     }
     get days() {
       return this.#days.map((day) => ({ ...day, slots: day.slots.map((slot) => ({ ...slot })) }));
@@ -849,9 +908,11 @@
       this.#messages = value ? { ...value } : null;
       this.#queueRender();
     }
+    get messages() {
+      return { ...resolveMessages(this.#messages) };
+    }
     get locale() {
-      const value = this.getAttribute("locale") || this.lang;
-      return value || document.documentElement.lang || navigator.language || "en";
+      return resolveLocale(this.getAttribute("locale") || "", this.lang || "", typeof document !== "undefined" && document.documentElement.lang || "", typeof navigator !== "undefined" && navigator.language || "", "en");
     }
     set locale(value) {
       if (!value)
@@ -884,8 +945,18 @@
         return null;
       const after = options.after ?? this.range.end;
       if (this.#sourceController.hasNext) {
-        const date = await this.#sourceController.next({ after });
-        if (date && isDateValue(date)) {
+        let date;
+        try {
+          date = await this.#sourceController.next({ after });
+        } catch (error) {
+          if (error instanceof DOMException && error.name === "AbortError")
+            return null;
+          this.#error = error;
+          this.#queueRender();
+          this.dispatchEvent(new CustomEvent("loaderror", { detail: { ...this.range, after, kind: "next", error } }));
+          return null;
+        }
+        if (date && isDateValue(date) && compareDates(date, after) > 0) {
           return this.goTo(date) || null;
         }
         return null;
@@ -901,7 +972,7 @@
         if (options.max !== undefined)
           this.max = options.max;
         if (options.start !== undefined)
-          this.start = options.start;
+          this.setAttribute("start", options.start);
         if (options.dayCount !== undefined)
           this.dayCount = options.dayCount;
         if (options.layout !== undefined)
@@ -1050,9 +1121,10 @@
       const box = entry?.contentBoxSize?.[0];
       const hostWidth = box ? box.inlineSize : entry?.contentRect.width ?? 0;
       const width = this.#contentWidth() ?? hostWidth;
+      const pendingFirst = this.#lastRange === null;
       const previous = this.visibleDayCount;
       this.#measuredWidth = width;
-      if (this.visibleDayCount !== previous)
+      if (pendingFirst || this.visibleDayCount !== previous)
         this.#reconcile({ pinActive: true });
     }
     #contentWidth() {
@@ -1204,7 +1276,7 @@
         content = rendered.html;
         hasOverflow = rendered.hasOverflow;
       }
-      const status = this.#loading ? `<div class="sp-status sp-visually-hidden" role="status">${escapeHtml(messages.loading)}</div>` : this.#error ? `<div class="sp-status sp-status-error" role="status">${escapeHtml(String(this.#error))}</div>` : "";
+      const status = this.#loading ? `<div class="sp-status sp-visually-hidden" role="status">${escapeHtml(messages.loading)}</div>` : this.#error ? `<div class="sp-status sp-status-error" role="status">${escapeHtml(messages.error)}</div>` : "";
       const homeAvailable = this.hasAttribute("home-date") && !invalid;
       const homeInRange = homeAvailable && compareDates(this.homeDate, range.start) >= 0 && compareDates(this.homeDate, range.end) <= 0;
       this.style.setProperty("--_sp-day-count", String(Math.max(1, days.length)));
@@ -1243,10 +1315,6 @@
       if (target.closest(".sp-home")) {
         this.#pendingFocus = '.sp-slot[tabindex="0"]';
         return this.goHome();
-      }
-      if (target.closest(".sp-nav-availability")) {
-        this.goToNextAvailability();
-        return;
       }
       if (target.closest(".sp-range-empty-availability")) {
         this.goToNextAvailability();

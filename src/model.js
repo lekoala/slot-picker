@@ -75,6 +75,17 @@ export function normalizeDays(input) {
           if (slot.end && !isTimeValue(slot.end)) {
             throw new TypeError(`Invalid slot end on ${day.date}`);
           }
+          // A slot cannot end before it starts: a reversed interval is a
+          // source bug, never silently rendered.
+          if (slot.end && slot.end.localeCompare(slot.start) <= 0) {
+            throw new TypeError(`Invalid slot end on ${day.date}`);
+          }
+          if (slot.disabled !== undefined && typeof slot.disabled !== "boolean") {
+            throw new TypeError(`Invalid slot disabled on ${day.date}`);
+          }
+          if (slot.description !== undefined && typeof slot.description !== "string") {
+            throw new TypeError(`Invalid slot description on ${day.date}`);
+          }
           if (slot.tone !== undefined && (typeof slot.tone !== "string" || slot.tone.trim() === "")) {
             throw new TypeError(`Invalid slot tone on ${day.date}`);
           }
@@ -88,7 +99,18 @@ export function normalizeDays(input) {
         })
         .sort((a, b) => a.start.localeCompare(b.start));
 
-      const notice = day.notice && typeof day.notice.label === "string" ? { ...day.notice } : undefined;
+      // An invalid notice is a source bug like any other invalid field:
+      // it throws instead of silently disappearing from the projection.
+      let notice;
+      if (day.notice != null) {
+        if (typeof day.notice !== "object" || typeof day.notice.label !== "string") {
+          throw new TypeError(`Invalid day notice on ${day.date}`);
+        }
+        if (day.notice.description !== undefined && typeof day.notice.description !== "string") {
+          throw new TypeError(`Invalid day notice on ${day.date}`);
+        }
+        notice = { ...day.notice };
+      }
       if (day.closed !== undefined && typeof day.closed !== "boolean") {
         throw new TypeError(`Invalid day closed on ${day.date}`);
       }

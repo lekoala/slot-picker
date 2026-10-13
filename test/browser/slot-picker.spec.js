@@ -2244,3 +2244,208 @@ test("narrowing the sparse demo lowers the ceiling, never the kind of column", a
   await settled((columns) => columns === 5);
   expect((await read()).dates).toEqual(wide.dates);
 });
+
+test("responsive first load uses the measured capacity, not dayCount", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "300px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "5");
+    picker.setAttribute("responsive", "");
+    const calls = [];
+    picker.source = (context) => {
+      calls.push({ start: context.start, end: context.end, dayCount: context.dayCount });
+      return [{ date: "2026-11-17", slots: [{ start: "09:00" }] }];
+    };
+    host.append(picker);
+    document.body.append(host);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    return {
+      calls,
+      rendered: picker.querySelectorAll(".sp-day").length,
+      range: picker.range,
+    };
+  });
+
+  // A single request with the reduced envelope: no full-width prefetch.
+  expect(result.calls).toHaveLength(1);
+  expect(result.calls[0].dayCount).toBe(1);
+  expect(result.calls[0]).toEqual({ start: "2026-11-17", end: "2026-11-17", dayCount: 1 });
+  expect(result.rendered).toBe(1);
+  expect(result.range.dayCount).toBe(1);
+});
+
+test("configure({ start, dayCount }) near max clamps with the final capacity", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "900px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "14");
+    picker.setAttribute("max", "2026-11-30");
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    picker.configure({ start: "2026-11-28", dayCount: 3 });
+    await new Promise(requestAnimationFrame);
+    return { range: picker.range };
+  });
+
+  expect(result.range).toEqual({ start: "2026-11-28", end: "2026-11-30", dayCount: 3 });
+});
+
+test("configure({ start, hiddenDays, dayCount }) near max clamps with the final capacity", async ({
+  page,
+}) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "900px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-12-01");
+    picker.setAttribute("day-count", "5");
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    picker.configure({ max: "2026-12-31", start: "2026-12-29", hiddenDays: [0, 6], dayCount: 2 });
+    await new Promise(requestAnimationFrame);
+    return { range: picker.range };
+  });
+
+  expect(result.range).toEqual({ start: "2026-12-29", end: "2026-12-30", dayCount: 2 });
+});
+
+test("an invalid locale falls back instead of emptying the component", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async (days) => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "3");
+    picker.setAttribute("locale", "en_US");
+    picker.days = days;
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+    await new Promise(requestAnimationFrame);
+    return {
+      locale: picker.locale,
+      columns: picker.querySelectorAll(".sp-day").length,
+      nav: Boolean(picker.querySelector(".sp-nav-prev") && picker.querySelector(".sp-nav-next")),
+    };
+  }, FIVE_DAYS);
+
+  expect(result.locale).toBe("en");
+  expect(result.columns).toBe(3);
+  expect(result.nav).toBe(true);
+});
+
+test("a rejecting source.next() emits loaderror instead of an unhandled rejection", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(String(error)));
+  const result = await page.evaluate(async (days) => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "5");
+    picker.days = days;
+    const kinds = [];
+    picker.addEventListener("loaderror", (event) => kinds.push(event.detail?.kind ?? "load"));
+    picker.source = { load: () => [], next: () => Promise.reject(new Error("next backend down")) };
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    const returned = await picker.goToNextAvailability();
+    await new Promise(requestAnimationFrame);
+    const status = picker.querySelector(".sp-status-error")?.textContent ?? "";
+    return { returned, kinds, status };
+  }, FIVE_DAYS);
+
+  expect(result.returned).toBeNull();
+  expect(result.kinds).toEqual(["next"]);
+  expect(result.status).toBe("Availability could not be loaded");
+  expect(pageErrors).toEqual([]);
+});
+
+test("source.next() proposing a date before after never moves the window", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async (days) => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "5");
+    picker.days = days;
+    picker.source = { load: () => [], next: () => "2026-01-05" };
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    const returned = await picker.goToNextAvailability();
+    return { returned, range: picker.range };
+  }, FIVE_DAYS);
+
+  expect(result.returned).toBeNull();
+  expect(result.range).toEqual({ start: "2026-11-17", end: "2026-11-21", dayCount: 5 });
+});
+
+test("a failing load shows a localized message and keeps the detail in loaderror", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async () => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "3");
+    let detail = null;
+    picker.addEventListener("loaderror", (event) => (detail = event.detail));
+    picker.source = () => Promise.reject(new Error("SQLSTATE[42S02] table users_internal missing"));
+    host.append(picker);
+    document.body.append(host);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const status = picker.querySelector(".sp-status-error")?.textContent ?? "";
+    return { status, detailMessage: String(detail?.error?.message ?? detail?.error ?? "") };
+  });
+
+  expect(result.status).toBe("Availability could not be loaded");
+  expect(result.status).not.toContain("SQLSTATE");
+  expect(result.detailMessage).toContain("SQLSTATE");
+});
+
+test("dayCount = 0 resolves to a single column like the attribute path", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async () => {
+    const picker = document.createElement("slot-picker");
+    picker.dayCount = 0;
+    return { attribute: picker.getAttribute("day-count"), property: picker.dayCount };
+  });
+
+  expect(result.attribute).toBe("1");
+  expect(result.property).toBe(1);
+});
+
+test("messages ignores non-string overrides and exposes a getter", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async () => {
+    const picker = document.createElement("slot-picker");
+    picker.messages = { previous: undefined, next: null };
+    document.body.append(picker);
+    await new Promise(requestAnimationFrame);
+    const prev = picker.querySelector(".sp-nav-prev")?.getAttribute("aria-label");
+    const next = picker.querySelector(".sp-nav-next")?.getAttribute("aria-label");
+    return { prev, next, getter: picker.messages.next };
+  });
+
+  expect(result.prev).toBe("Previous days");
+  expect(result.next).toBe("Next days");
+  expect(result.getter).toBe("Next days");
+});

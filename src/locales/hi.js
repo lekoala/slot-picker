@@ -6,6 +6,7 @@ export default {
   showMore: "और उपलब्धताएँ दिखाएँ",
   showLess: "कम दिखाएँ",
   loading: "उपलब्धता लोड हो रही है",
+  error: "उपलब्धता लोड नहीं हो सकी",
   empty: "कोई उपलब्धता नहीं",
   closed: "बंद",
   rangeEmptyTitle: "इस अवधि में कोई स्लॉट उपलब्ध नहीं",

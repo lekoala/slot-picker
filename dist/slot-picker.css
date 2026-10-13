@@ -1,13 +1,17 @@
 :where(slot-picker) {
   --sp-bg: #ffffff;
   --sp-fg: #1f2328;
-  --sp-muted: color-mix(in srgb, var(--sp-fg) 58%, var(--sp-bg));
-  --sp-border: color-mix(in srgb, var(--sp-fg) 16%, var(--sp-bg));
-  --sp-hover: color-mix(in srgb, var(--sp-fg) 5%, var(--sp-bg));
-  --sp-notice-hover-bg: color-mix(in srgb, var(--sp-fg) 12%, var(--sp-bg));
+  /* Derived colors are stated twice: the precomputed default here, the
+     `color-mix()` expression under the feature query below. A custom property
+     holding an unsupported value still wins the cascade and only fails when
+     `var()` substitutes it, so the expression cannot carry its own fallback. */
+  --sp-muted: #7d7f82;
+  --sp-border: #dbdcdd;
+  --sp-hover: #f4f4f4;
+  --sp-notice-hover-bg: #e4e5e5;
   --sp-accent: #2563eb;
   --sp-accent-fg: #ffffff;
-  --sp-accent-soft: color-mix(in srgb, var(--sp-accent) 16%, var(--sp-bg));
+  --sp-accent-soft: #dce6fc;
   --sp-focus: var(--sp-accent);
   --sp-radius: 0.5rem;
   --sp-gap: 0.5rem;
@@ -20,7 +24,7 @@
   --sp-slot-bg: var(--sp-accent-soft);
   --sp-slot-fg: var(--sp-fg);
   --sp-slot-border: transparent;
-  --sp-slot-hover-bg: color-mix(in srgb, var(--sp-accent) 22%, var(--sp-bg));
+  --sp-slot-hover-bg: #cfddfb;
   --sp-slot-selected-bg: var(--sp-accent);
   --sp-slot-selected-fg: var(--sp-accent-fg);
   --sp-nav-size: 2.5rem;
@@ -54,6 +58,22 @@
   display: block;
   color: var(--sp-fg);
   font: inherit;
+}
+
+/* Derive the colors for real once the browser can. The element runs wherever
+   private class fields do, which is older than `color-mix()`, so the defaults
+   above stay the floor and this only sharpens them — and keeps a retinted
+   `--sp-bg`, `--sp-fg` or `--sp-accent` propagating to everything it should.
+   Same zero specificity as the base block, so a theme still overrides both. */
+@supports (color: color-mix(in srgb, red, blue)) {
+  :where(slot-picker) {
+    --sp-muted: color-mix(in srgb, var(--sp-fg) 58%, var(--sp-bg));
+    --sp-border: color-mix(in srgb, var(--sp-fg) 16%, var(--sp-bg));
+    --sp-hover: color-mix(in srgb, var(--sp-fg) 5%, var(--sp-bg));
+    --sp-notice-hover-bg: color-mix(in srgb, var(--sp-fg) 12%, var(--sp-bg));
+    --sp-accent-soft: color-mix(in srgb, var(--sp-accent) 16%, var(--sp-bg));
+    --sp-slot-hover-bg: color-mix(in srgb, var(--sp-accent) 22%, var(--sp-bg));
+  }
 }
 
 /* The component renders in light DOM, so a page stylesheet can reach these
@@ -446,7 +466,13 @@ slot-picker[layout="day"] .sp-day-empty {
 }
 
 .sp-range-empty-next:hover {
-  background: color-mix(in srgb, var(--sp-accent) 85%, var(--sp-bg));
+  background: #467aee;
+}
+
+@supports (color: color-mix(in srgb, red, blue)) {
+  .sp-range-empty-next:hover {
+    background: color-mix(in srgb, var(--sp-accent) 85%, var(--sp-bg));
+  }
 }
 
 .sp-range-empty-availability {

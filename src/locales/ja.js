@@ -6,6 +6,7 @@ export default {
   showMore: "空きをさらに表示",
   showLess: "表示を減らす",
   loading: "空き状況を読み込み中",
+  error: "空き状況を読み込めませんでした",
   empty: "空きがありません",
   closed: "休診",
   rangeEmptyTitle: "この期間に空きがありません",

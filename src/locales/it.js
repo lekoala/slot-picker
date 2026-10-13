@@ -6,6 +6,7 @@ export default {
   showMore: "Mostra più disponibilità",
   showLess: "Mostra meno",
   loading: "Caricamento disponibilità",
+  error: "Impossibile caricare la disponibilità",
   empty: "Nessuna disponibilità",
   closed: "Chiuso",
   rangeEmptyTitle: "Nessuna disponibilità in questo periodo",

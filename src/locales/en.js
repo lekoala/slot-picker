@@ -6,6 +6,7 @@ export default {
   showMore: "Show more availability",
   showLess: "Show less",
   loading: "Loading availability",
+  error: "Availability could not be loaded",
   empty: "No availability",
   closed: "Closed",
   rangeEmptyTitle: "No availability in this period",

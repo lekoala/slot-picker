@@ -4,7 +4,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 export function isDateValue(value) {
   if (!DATE_RE.test(value)) return false;
   const [year, month, day] = value.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
+  const date = fromCivilFields(year, month, day);
   return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
 }
 
@@ -15,10 +15,24 @@ function parts(value) {
   return { year, month, day };
 }
 
+/**
+ * `Date.UTC` maps years 0–99 to 1900–1999. Shift the 1900 offset back so
+ * civil math stays exact over the whole YYYY range, preserving any real
+ * month/year rollover from day arithmetic.
+ * @param {number} year
+ * @param {number} month
+ * @param {number} day
+ */
+function fromCivilFields(year, month, day) {
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (year >= 0 && year < 100) date.setUTCFullYear(date.getUTCFullYear() - 1900);
+  return date;
+}
+
 /** @param {string} value @param {number} amount */
 export function addDays(value, amount) {
   const { year, month, day } = parts(value);
-  const date = new Date(Date.UTC(year, month - 1, day + amount));
+  const date = fromCivilFields(year, month, day + amount);
   return [
     String(date.getUTCFullYear()).padStart(4, "0"),
     String(date.getUTCMonth() + 1).padStart(2, "0"),
@@ -62,7 +76,7 @@ export function weekdayIndex(value) {
 /** @param {string} value */
 export function toUtcDate(value) {
   const { year, month, day } = parts(value);
-  return new Date(Date.UTC(year, month - 1, day));
+  return fromCivilFields(year, month, day);
 }
 
 /** Local civil "today" without timezone conversion of public values. */

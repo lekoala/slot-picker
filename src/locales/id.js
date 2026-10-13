@@ -6,6 +6,7 @@ export default {
   showMore: "Tampilkan lebih banyak ketersediaan",
   showLess: "Tampilkan lebih sedikit",
   loading: "Memuat ketersediaan",
+  error: "Ketersediaan tidak dapat dimuat",
   empty: "Tidak ada ketersediaan",
   closed: "Tutup",
   rangeEmptyTitle: "Tidak ada ketersediaan pada periode ini",

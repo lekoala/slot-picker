@@ -1,5 +1,15 @@
 import { describe, expect, test } from "bun:test";
+import { renderColumns } from "../../src/views/columns.js";
+import { renderDay } from "../../src/views/day.js";
 import { noticeBlock, noticeIndicator, slotButton } from "../../src/views/shared.js";
+
+const MESSAGES = {
+  oneSlot: "1 slot",
+  manySlots: "{n} slots",
+  empty: "No availability",
+  closed: "Closed",
+  days: "Days",
+};
 
 describe("day notice rendering", () => {
   test("renders a non-interactive block with label and description", () => {
@@ -129,5 +139,51 @@ describe("slot button semantics", () => {
     expect(html).toContain('role="option"');
     expect(html).toContain('aria-disabled="true"');
     expect(html).toContain(" disabled");
+  });
+});
+
+describe("disabled selection", () => {
+  test("columns never render a disabled slot as selected", () => {
+    const { html } = renderColumns({
+      visible: [{ date: "2026-11-17", slots: [{ start: "10:00", disabled: true }] }],
+      value: "2026-11-17T10:00",
+      focusedValue: "",
+      maxVisibleRows: 5,
+      expanded: false,
+      noticeDisplay: "action",
+      messages: MESSAGES,
+      locale: "en",
+    });
+    expect(html).toContain(" disabled");
+    expect(html).not.toContain('aria-selected="true"');
+  });
+
+  test("day projection never renders a disabled slot as selected", () => {
+    const { html } = renderDay({
+      visible: [{ date: "2026-11-17", slots: [{ start: "10:00", disabled: true }] }],
+      activeDate: "2026-11-17",
+      today: "2026-11-17",
+      value: "2026-11-17T10:00",
+      focusedValue: "",
+      noticeDisplay: "action",
+      messages: MESSAGES,
+      locale: "en",
+    });
+    expect(html).toContain(" disabled");
+    expect(html).not.toContain('aria-selected="true"');
+  });
+
+  test("an enabled slot still renders as selected", () => {
+    const { html } = renderColumns({
+      visible: [{ date: "2026-11-17", slots: [{ start: "10:00" }] }],
+      value: "2026-11-17T10:00",
+      focusedValue: "",
+      maxVisibleRows: 5,
+      expanded: false,
+      noticeDisplay: "action",
+      messages: MESSAGES,
+      locale: "en",
+    });
+    expect(html).toContain('aria-selected="true"');
   });
 });

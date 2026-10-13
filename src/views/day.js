@@ -100,7 +100,9 @@ export function renderDay({
             slot,
             dayIndex: activeIndex,
             slotIndex,
-            selected: slotVal === value,
+            // A disabled slot can never read as selected (U7), even
+            // when `value` is assigned programmatically.
+            selected: slotVal === value && !slot.disabled,
             tabbed: slotVal === activeFocus && !slot.disabled,
           });
         },

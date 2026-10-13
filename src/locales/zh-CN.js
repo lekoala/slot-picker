@@ -6,6 +6,7 @@ export default {
   showMore: "显示更多可预约时间",
   showLess: "收起",
   loading: "正在加载可预约时间",
+  error: "无法加载可预约时间",
   empty: "暂无可预约时间",
   closed: "休息",
   rangeEmptyTitle: "该时间段暂无可预约时间",

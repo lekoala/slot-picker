@@ -6,6 +6,7 @@ export default {
   showMore: "Daha fazla uygunluk göster",
   showLess: "Daha az göster",
   loading: "Uygunluk yükleniyor",
+  error: "Müsaitlik yüklenemedi",
   empty: "Uygun zaman yok",
   closed: "Kapalı",
   rangeEmptyTitle: "Bu dönemde uygun zaman yok",

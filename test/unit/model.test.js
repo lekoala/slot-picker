@@ -68,6 +68,42 @@ describe("slot model", () => {
     );
   });
 
+  test("rejects a slot ending at or before its start", () => {
+    expect(() => normalizeDays([{ date: "2026-11-17", slots: [{ start: "14:00", end: "09:00" }] }])).toThrow(
+      /Invalid slot end/,
+    );
+    expect(() => normalizeDays([{ date: "2026-11-17", slots: [{ start: "10:00", end: "10:00" }] }])).toThrow(
+      /Invalid slot end/,
+    );
+    expect(() =>
+      normalizeDays([{ date: "2026-11-17", slots: [{ start: "10:00", end: "10:30" }] }]),
+    ).not.toThrow();
+  });
+
+  test("rejects a non-boolean disabled flag instead of disabling the slot", () => {
+    expect(() =>
+      normalizeDays([{ date: "2026-11-17", slots: [{ start: "10:00", disabled: "false" }] }]),
+    ).toThrow(/Invalid slot disabled/);
+  });
+
+  test("rejects a non-string description instead of leaking it to aria", () => {
+    expect(() =>
+      normalizeDays([{ date: "2026-11-17", slots: [{ start: "10:00", description: 5 }] }]),
+    ).toThrow(/Invalid slot description/);
+  });
+
+  test("rejects an invalid notice instead of dropping it silently", () => {
+    expect(() => normalizeDays([{ date: "2026-11-17", slots: [], notice: { label: 42 } }])).toThrow(
+      /Invalid day notice/,
+    );
+    expect(() =>
+      normalizeDays([{ date: "2026-11-17", slots: [], notice: { label: "Late", description: 7 } }]),
+    ).toThrow(/Invalid day notice/);
+    expect(() =>
+      normalizeDays([{ date: "2026-11-17", slots: [], notice: { label: "Late opening" } }]),
+    ).not.toThrow();
+  });
+
   test("fills empty visible days from the projected dates", () => {
     const dates = ["2026-11-17", "2026-11-18", "2026-11-19"];
     const days = visibleDays([{ date: "2026-11-18", slots: [] }], dates);

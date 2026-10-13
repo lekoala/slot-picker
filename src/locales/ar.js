@@ -6,6 +6,7 @@ export default {
   showMore: "إظهار مزيد من التوفر",
   showLess: "إظهار أقل",
   loading: "جارٍ تحميل التوفر",
+  error: "تعذّر تحميل التوفر",
   empty: "لا يوجد توفر",
   closed: "مغلق",
   rangeEmptyTitle: "لا يوجد أي موعد متاح في هذه الفترة",

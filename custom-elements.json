@@ -29,7 +29,70 @@
               "type": { "text": "\"inline\" | \"action\" | \"none\"" },
               "default": "action"
             },
-            { "name": "locale", "type": { "text": "string" } }
+            { "name": "locale", "type": { "text": "string" } },
+            { "name": "lang", "type": { "text": "string" } }
+          ],
+          "members": [
+            { "kind": "field", "name": "start", "type": { "text": "string" } },
+            { "kind": "field", "name": "dayCount", "type": { "text": "number" } },
+            { "kind": "field", "name": "visibleDayCount", "readonly": true, "type": { "text": "number" } },
+            { "kind": "field", "name": "min", "type": { "text": "string" } },
+            { "kind": "field", "name": "max", "type": { "text": "string" } },
+            { "kind": "field", "name": "value", "type": { "text": "string" } },
+            { "kind": "field", "name": "activeDate", "type": { "text": "string" } },
+            { "kind": "field", "name": "homeDate", "type": { "text": "string" } },
+            { "kind": "field", "name": "layout", "type": { "text": "\"columns\" | \"day\"" } },
+            {
+              "kind": "field",
+              "name": "noticeDisplay",
+              "type": { "text": "\"inline\" | \"action\" | \"none\"" }
+            },
+            { "kind": "field", "name": "expanded", "type": { "text": "boolean" } },
+            { "kind": "field", "name": "maxVisibleRows", "type": { "text": "number" } },
+            { "kind": "field", "name": "responsive", "type": { "text": "boolean" } },
+            {
+              "kind": "field",
+              "name": "responsiveBreakpoints",
+              "type": { "text": "ResponsiveBreakpoint[] | null" }
+            },
+            { "kind": "field", "name": "hiddenDays", "type": { "text": "number[]" } },
+            { "kind": "field", "name": "days", "type": { "text": "SlotDay[]" } },
+            { "kind": "field", "name": "source", "type": { "text": "SlotSource | null" } },
+            { "kind": "field", "name": "messages", "type": { "text": "typeof DEFAULT_MESSAGES" } },
+            { "kind": "field", "name": "locale", "type": { "text": "string" } },
+            {
+              "kind": "field",
+              "name": "range",
+              "readonly": true,
+              "type": { "text": "{ start: string, end: string, dayCount: number }" }
+            },
+            {
+              "kind": "method",
+              "name": "previous",
+              "description": "Move to the previous window of visibleDayCount days."
+            },
+            {
+              "kind": "method",
+              "name": "next",
+              "description": "Move to the next window of visibleDayCount days."
+            },
+            {
+              "kind": "method",
+              "name": "goTo",
+              "description": "Bring date into the visible range and consult it."
+            },
+            { "kind": "method", "name": "goHome", "description": "Return to the homeDate window." },
+            {
+              "kind": "method",
+              "name": "goToNextAvailability",
+              "description": "Jump to the source's next known availability after the visible range."
+            },
+            {
+              "kind": "method",
+              "name": "configure",
+              "description": "Apply several settings as one transaction."
+            },
+            { "kind": "method", "name": "reload", "description": "Reload the visible range from the source." }
           ],
           "events": [
             { "name": "rangechange" },

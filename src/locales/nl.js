@@ -6,6 +6,7 @@ export default {
   showMore: "Meer beschikbaarheid tonen",
   showLess: "Minder tonen",
   loading: "Beschikbaarheid laden",
+  error: "Beschikbaarheid kon niet worden geladen",
   empty: "Geen beschikbaarheid",
   closed: "Gesloten",
   rangeEmptyTitle: "Geen beschikbaarheid in deze periode",

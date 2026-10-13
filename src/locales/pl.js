@@ -6,6 +6,7 @@ export default {
   showMore: "Pokaż więcej dostępności",
   showLess: "Pokaż mniej",
   loading: "Ładowanie dostępności",
+  error: "Nie udało się wczytać dostępności",
   empty: "Brak dostępności",
   closed: "Zamknięte",
   rangeEmptyTitle: "Brak dostępności w tym okresie",

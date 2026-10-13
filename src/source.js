@@ -65,6 +65,9 @@ export class SlotSourceController {
   /**
    * Ask the source for the next known availability after `after`.
    * Superseded calls are aborted; a stale response resolves to null.
+   * A source honoring the signal rejects with `AbortError`: that rejection
+   * is a stale response too, so it also resolves to null instead of
+   * surfacing as an unhandled rejection.
    * @param {{after:string}} context
    */
   async next({ after }) {
@@ -80,6 +83,9 @@ export class SlotSourceController {
       const result = await source.next({ after, signal: controller.signal });
       if (request !== this.#nextRequest || controller.signal.aborted) return null;
       return typeof result === "string" ? result : null;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return null;
+      throw error;
     } finally {
       if (this.#nextController === controller) this.#nextController = null;
     }

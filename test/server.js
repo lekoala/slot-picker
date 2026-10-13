@@ -40,6 +40,6 @@ function shutdown() {
 process.once("SIGINT", shutdown);
 process.once("SIGTERM", shutdown);
 
-server.listen(port, () => {
+server.listen(port, "127.0.0.1", () => {
   console.log(`http://localhost:${port}`);
 });

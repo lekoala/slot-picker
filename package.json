@@ -38,11 +38,13 @@
   "exports": {
     ".": {
       "types": "./dist/types/index.d.ts",
-      "import": "./src/index.js"
+      "import": "./src/index.js",
+      "default": "./src/index.js"
     },
     "./define": {
       "types": "./dist/types/define.d.ts",
-      "import": "./src/define.js"
+      "import": "./src/define.js",
+      "default": "./src/define.js"
     },
     "./locales/ar": {
       "types": "./dist/types/locales/ar.d.ts",

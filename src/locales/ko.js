@@ -6,6 +6,7 @@ export default {
   showMore: "가능한 시간 더 보기",
   showLess: "간단히 보기",
   loading: "가능한 시간을 불러오는 중",
+  error: "가능한 시간을 불러오지 못했습니다",
   empty: "가능한 시간 없음",
   closed: "휴진",
   rangeEmptyTitle: "이 기간에는 예약 가능한 시간이 없습니다",
