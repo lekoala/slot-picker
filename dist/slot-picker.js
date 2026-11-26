@@ -31,7 +31,7 @@
     ].join("-");
   }
   function compareDates(a, b) {
-    return a.localeCompare(b);
+    return a < b ? -1 : a > b ? 1 : 0;
   }
   function weekdayIndex(value) {
     return toUtcDate(value).getUTCDay();
@@ -97,6 +97,9 @@
 
   // src/model.js
   var TIME_RE = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+  function compareTimes(a, b) {
+    return a < b ? -1 : a > b ? 1 : 0;
+  }
   var RESPONSIVE_BREAKPOINTS = Object.freeze([
     Object.freeze({ minWidth: 600, dayCount: 5 }),
     Object.freeze({ minWidth: 480, dayCount: 4 }),
@@ -104,6 +107,11 @@
     Object.freeze({ minWidth: 260, dayCount: 2 }),
     Object.freeze({ minWidth: 0, dayCount: 1 })
   ]);
+  var MAX_DAY_COUNT = 14;
+  function clampDayCount(dayCount, minimum) {
+    const count = Math.trunc(Number(dayCount) || 0);
+    return Math.max(minimum, Math.min(MAX_DAY_COUNT, count));
+  }
   var SLOT_RE = /^(\d{4}-\d{2}-\d{2})T((?:[01]\d|2[0-3]):[0-5]\d)$/;
   function isTimeValue(value) {
     return TIME_RE.test(value);
@@ -136,7 +144,7 @@
         if (slot.end && !isTimeValue(slot.end)) {
           throw new TypeError(`Invalid slot end on ${day.date}`);
         }
-        if (slot.end && slot.end.localeCompare(slot.start) <= 0) {
+        if (slot.end && compareTimes(slot.end, slot.start) <= 0) {
           throw new TypeError(`Invalid slot end on ${day.date}`);
         }
         if (slot.disabled !== undefined && typeof slot.disabled !== "boolean") {
@@ -153,7 +161,7 @@
         }
         seenStarts.add(slot.start);
         return { ...slot };
-      }).sort((a, b) => a.start.localeCompare(b.start));
+      }).sort((a, b) => compareTimes(a.start, b.start));
       let notice;
       if (day.notice != null) {
         if (typeof day.notice !== "object" || typeof day.notice.label !== "string") {
@@ -176,12 +184,14 @@
         ...day.closed ? { closed: true } : {},
         ...notice ? { notice } : {}
       };
-    }).sort((a, b) => a.date.localeCompare(b.date));
+    }).sort((a, b) => compareDates(a.date, b.date));
+  }
+  function emptyDay(date) {
+    return { date, slots: [] };
   }
   function visibleDays(days, dates) {
-    const normalized = normalizeDays(days);
-    const byDate = new Map(normalized.map((day) => [day.date, day]));
-    return dates.map((date) => byDate.get(date) ?? { date, slots: [] });
+    const byDate = new Map(days.map((day) => [day.date, day]));
+    return dates.map((date) => byDate.get(date) ?? emptyDay(date));
   }
   function collapsedDays(days, maxVisibleRows, expanded) {
     const maxRows = Math.max(0, ...days.map((day) => day.slots.length));
@@ -232,7 +242,7 @@
     return dates;
   }
   function projectDates(start, dayCount, hiddenDays = [], min = "", max = "") {
-    const count = Math.max(0, Math.trunc(Number(dayCount) || 0));
+    const count = clampDayCount(dayCount, 0);
     if (!count || !isDateValue(start) || !isValidRange(min, max))
       return [];
     const hidden = normalizeHiddenDays(hiddenDays);
@@ -257,7 +267,7 @@
   function normalizeBreakpoints(breakpoints) {
     return breakpoints.map((breakpoint) => ({
       minWidth: Math.max(0, Number(breakpoint?.minWidth) || 0),
-      dayCount: Math.max(1, Math.min(14, Number(breakpoint?.dayCount) || 1))
+      dayCount: Math.max(1, Math.min(MAX_DAY_COUNT, Number(breakpoint?.dayCount) || 1))
     })).sort((a, b) => b.minWidth - a.minWidth);
   }
   function resolveVisibleDayCount(dayCount, width, breakpoints = RESPONSIVE_BREAKPOINTS) {
@@ -274,7 +284,7 @@
   }
   function ensureVisible(start, dayCount, date, min, max, hiddenDays = []) {
     const hidden = normalizeHiddenDays(hiddenDays);
-    const count = Math.max(1, dayCount);
+    const count = clampDayCount(dayCount, 1);
     const dates = projectDates(start, count, hidden, min, max);
     if (!dates.length)
       return clampDate(start, min, max);
@@ -437,6 +447,19 @@
 
   // src/views/shared.js
   var ENTITIES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+  var FORMATTERS = new Map;
+  function dateTimeFormat(locale, options) {
+    const key = `${locale}|${JSON.stringify(options)}`;
+    let formatter = FORMATTERS.get(key);
+    if (!formatter) {
+      formatter = new Intl.DateTimeFormat(locale, options);
+      FORMATTERS.set(key, formatter);
+    }
+    return formatter;
+  }
+  function interpolate(template, values) {
+    return template.replace(/\{(\w+)\}/g, (placeholder, key) => Object.hasOwn(values, key) ? String(values[key]) : placeholder);
+  }
   function escapeHtml(value) {
     return String(value).replace(/[&<>"']/g, (char) => ENTITIES[char] || char);
   }
@@ -487,18 +510,21 @@
       return "–";
     if (count === 1)
       return messages.oneSlot;
-    return messages.manySlots.replace("{n}", String(count));
+    return interpolate(messages.manySlots, { n: count });
   }
   function rangeEmpty({ start, end, invalid, canNext, nextAvailability, locale, messages }) {
     const showDescription = !invalid && Boolean(start);
     let description = "";
     if (showDescription) {
-      const formatter = new Intl.DateTimeFormat(locale, {
+      const formatter = dateTimeFormat(locale, {
         day: "numeric",
         month: "short",
         timeZone: "UTC"
       });
-      const text = messages.rangeEmptyDescription.replace("{start}", formatter.format(toUtcDate(start))).replace("{end}", formatter.format(toUtcDate(end)));
+      const text = interpolate(messages.rangeEmptyDescription, {
+        start: formatter.format(toUtcDate(start)),
+        end: formatter.format(toUtcDate(end))
+      });
       description = `<p class="sp-range-empty-description">${escapeHtml(text)}</p>`;
     }
     const actions = [];
@@ -528,8 +554,8 @@
     messages,
     locale
   }) {
-    const formatterDay = new Intl.DateTimeFormat(locale, { weekday: "short", ...UTC_FORMAT });
-    const formatterDate = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", ...UTC_FORMAT });
+    const formatterDay = dateTimeFormat(locale, { weekday: "short", ...UTC_FORMAT });
+    const formatterDate = dateTimeFormat(locale, { day: "numeric", month: "short", ...UTC_FORMAT });
     const { days: collapsed, rows, hasOverflow } = collapsedDays(visible, maxVisibleRows, expanded);
     const enabled = enabledValues(collapsed);
     const firstEnabled = enabled[0] || "";
@@ -589,13 +615,13 @@
     messages,
     locale
   }) {
-    const formatterStripDay = new Intl.DateTimeFormat(locale, { weekday: "short", ...UTC_FORMAT2 });
-    const formatterStripDate = new Intl.DateTimeFormat(locale, {
+    const formatterStripDay = dateTimeFormat(locale, { weekday: "short", ...UTC_FORMAT2 });
+    const formatterStripDate = dateTimeFormat(locale, {
       day: "numeric",
       month: "short",
       ...UTC_FORMAT2
     });
-    const formatterPanelDay = new Intl.DateTimeFormat(locale, {
+    const formatterPanelDay = dateTimeFormat(locale, {
       weekday: "long",
       day: "numeric",
       month: "long",
@@ -685,6 +711,8 @@
     #renderQueued = false;
     #initializing = false;
     #batching = false;
+    #connected = false;
+    #settingActiveDate = false;
     #pendingFocus = "";
     #resizeObserver = null;
     #measuredWidth = null;
@@ -699,6 +727,7 @@
       this.addEventListener("keydown", (event) => this.#onKeyDown(event));
     }
     connectedCallback() {
+      this.#connected = true;
       this.#initializing = true;
       if (!this.hasAttribute("start"))
         this.setAttribute("start", todayValue());
@@ -720,6 +749,7 @@
       this.#reconcile({ pinActive: false });
     }
     disconnectedCallback() {
+      this.#connected = false;
       this.#sourceController.abort();
       this.#resizeObserver?.disconnect();
       this.#loadedKey = null;
@@ -729,6 +759,11 @@
         return;
       if (this.#initializing || this.#batching)
         return;
+      if (name === "active-date") {
+        if (this.#connected && !this.#settingActiveDate)
+          this.#adoptActiveDate();
+        return;
+      }
       if (RANGE_ATTRIBUTES.has(name))
         this.#reconcile({ pinActive: name !== "start" });
       else
@@ -746,11 +781,11 @@
     }
     get dayCount() {
       const value = Number.parseInt(this.getAttribute("day-count") || "5", 10);
-      return Number.isFinite(value) ? Math.max(1, Math.min(14, value)) : 5;
+      return Number.isFinite(value) ? Math.max(1, Math.min(MAX_DAY_COUNT, value)) : 5;
     }
     set dayCount(value) {
       const numeric = Number(value);
-      const next = Number.isFinite(numeric) ? Math.max(1, Math.min(14, Math.trunc(numeric))) : 5;
+      const next = Number.isFinite(numeric) ? Math.max(1, Math.min(MAX_DAY_COUNT, Math.trunc(numeric))) : 5;
       this.setAttribute("day-count", String(next));
     }
     get hiddenDays() {
@@ -1098,6 +1133,8 @@
       this.#lastRange = range;
       this.#lastActiveDate = active;
       this.#queueRender();
+      if (!this.#connected)
+        return;
       if (!first && rangeChanged)
         this.dispatchEvent(new CustomEvent("rangechange", { detail: range }));
       if (!first && activeChanged) {
@@ -1131,6 +1168,25 @@
       const content = this.querySelector(".sp-content");
       return content ? content.getBoundingClientRect().width : null;
     }
+    #adoptActiveDate() {
+      const dates = this.#projection();
+      const raw = this.getAttribute("active-date") || "";
+      const resolved = dates.length ? resolveActiveDate(dates, raw) : "";
+      const previous = this.#lastActiveDate;
+      if (dates.length && raw !== resolved) {
+        this.#settingActiveDate = true;
+        try {
+          this.setAttribute("active-date", resolved);
+        } finally {
+          this.#settingActiveDate = false;
+        }
+      }
+      this.#lastActiveDate = resolved;
+      this.#queueRender();
+      if (previous !== null && resolved !== previous) {
+        this.dispatchEvent(new CustomEvent("daychange", { detail: { activeDate: resolved } }));
+      }
+    }
     #setActiveDate(date, emit = true) {
       const dates = this.#projection();
       if (!dates.length)
@@ -1139,8 +1195,14 @@
       const before = this.activeDate;
       if (resolved === before && this.getAttribute("active-date") === resolved)
         return;
-      this.setAttribute("active-date", resolved);
+      this.#settingActiveDate = true;
+      try {
+        this.setAttribute("active-date", resolved);
+      } finally {
+        this.#settingActiveDate = false;
+      }
       this.#lastActiveDate = resolved;
+      this.#queueRender();
       if (emit && resolved !== before) {
         this.dispatchEvent(new CustomEvent("daychange", { detail: { activeDate: resolved } }));
       }
@@ -1221,6 +1283,18 @@
     }
     #focusFallback() {
       return this.querySelector('.sp-slot[tabindex="0"]') ?? this.querySelector('.sp-strip-day[tabindex="0"]');
+    }
+    #moveRovingFocus(value) {
+      const next = this.querySelector(`.sp-slot[data-value="${CSS.escape(value)}"]`);
+      if (!(next instanceof HTMLButtonElement))
+        return;
+      this.#focusedValue = value;
+      for (const tabbed of this.querySelectorAll('.sp-slot[tabindex="0"]')) {
+        if (tabbed instanceof HTMLElement)
+          tabbed.tabIndex = -1;
+      }
+      next.tabIndex = 0;
+      next.focus({ preventScroll: true });
     }
     #projectedDays() {
       return visibleDays(this.#days, this.#projection());
@@ -1387,10 +1461,7 @@
       const nextSlot = nextDay?.slots[next.slotIndex];
       if (!nextSlot || nextSlot.disabled)
         return;
-      const value = slotValue(nextDay.date, nextSlot.start);
-      this.#focusedValue = value;
-      this.#pendingFocus = `.sp-slot[data-value="${CSS.escape(value)}"]`;
-      this.#render();
+      this.#moveRovingFocus(slotValue(nextDay.date, nextSlot.start));
     }
     #onStripKeyDown(event) {
       const map = { ArrowLeft: -1, ArrowRight: 1, Home: "home", End: "end" };
@@ -1446,10 +1517,7 @@
       const next = enabled[nextPosition];
       if (!next)
         return;
-      const value = slotValue(active.date, next.slot.start);
-      this.#focusedValue = value;
-      this.#pendingFocus = `.sp-slot[data-value="${CSS.escape(value)}"]`;
-      this.#render();
+      this.#moveRovingFocus(slotValue(active.date, next.slot.start));
     }
     #activateSlot(button) {
       if (button.disabled)

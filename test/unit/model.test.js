@@ -229,6 +229,11 @@ describe("bounded and responsive navigation", () => {
     expect(projectDates("2026-11-17", 0)).toEqual([]);
   });
 
+  test("projectDates caps an unbounded count instead of walking forever", () => {
+    expect(projectDates("2026-11-17", 1e9)).toHaveLength(14);
+    expect(projectDates("2026-11-17", 14.9)).toHaveLength(14);
+  });
+
   test("hidden weekdays widen the envelope instead of eating a column", () => {
     // Mon 2026-11-16, weekend hidden: still five columns, envelope Mon to Fri.
     const week = projectDates("2026-11-16", 5, [0, 6]);

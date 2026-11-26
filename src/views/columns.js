@@ -1,6 +1,7 @@
 import { toUtcDate } from "../date.js";
 import { collapsedDays, slotValue } from "../model.js";
 import {
+  dateTimeFormat,
   dayEmpty,
   enabledValues,
   escapeAttr,
@@ -33,8 +34,8 @@ export function renderColumns({
   messages,
   locale,
 }) {
-  const formatterDay = new Intl.DateTimeFormat(locale, { weekday: "short", ...UTC_FORMAT });
-  const formatterDate = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", ...UTC_FORMAT });
+  const formatterDay = dateTimeFormat(locale, { weekday: "short", ...UTC_FORMAT });
+  const formatterDate = dateTimeFormat(locale, { day: "numeric", month: "short", ...UTC_FORMAT });
   // Collapse before computing roving focus: the single tabbable value must be
   // one of the rendered buttons, never a slot hidden by the visible row limit.
   const { days: collapsed, rows, hasOverflow } = collapsedDays(visible, maxVisibleRows, expanded);

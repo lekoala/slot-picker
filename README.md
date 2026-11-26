@@ -387,7 +387,7 @@ only needs `slotactivate`.
 ## Events
 
 - `rangechange` — the visible civil range changed.
-- `daychange` — the consulted day (`activeDate`) changed; never selects a slot.
+- `daychange` — the consulted day (`activeDate`) changed; never selects a slot. A programmatic `activeDate` / `active-date` write resolves against the current projection and emits the same event.
 - `slotactivate` — the user explicitly chose a slot (sets `activeDate` first); bubbles.
 - `noticeactivate` — the user activated a day notice control (bubbles, detail `{ day, notice, anchor }`, no default behavior).
 - `nextrequest` — no `source.next` was available; detail is `{ after }`.

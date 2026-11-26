@@ -446,6 +446,43 @@ test("goTo emits rangechange before daychange", async ({ page }) => {
   expect(events).toEqual(["rangechange", "daychange"]);
 });
 
+test("a programmatic activeDate emits immediately and never leaks a late daychange", async ({ page }) => {
+  await page.goto("/demo/index.html");
+  const result = await page.evaluate(async (days) => {
+    const host = document.createElement("div");
+    host.style.width = "700px";
+    const picker = document.createElement("slot-picker");
+    picker.setAttribute("start", "2026-11-17");
+    picker.setAttribute("day-count", "5");
+    picker.setAttribute("min", "2026-11-17");
+    picker.setAttribute("max", "2026-12-15");
+    picker.days = days;
+    host.append(picker);
+    document.body.append(host);
+    await new Promise(requestAnimationFrame);
+
+    const events = [];
+    picker.addEventListener("daychange", (event) => events.push(event.detail.activeDate));
+    picker.activeDate = "2026-11-19";
+    const afterAssignment = [...events];
+
+    // A later, unrelated commit must not replay the already published change.
+    picker.configure({ max: "2026-12-20" });
+    await new Promise(requestAnimationFrame);
+    return {
+      afterAssignment,
+      events,
+      normalized: picker.getAttribute("active-date"),
+      activeDate: picker.activeDate,
+    };
+  }, FIVE_DAYS);
+
+  expect(result.afterAssignment).toEqual(["2026-11-19"]);
+  expect(result.events).toEqual(["2026-11-19"]);
+  expect(result.normalized).toBe("2026-11-19");
+  expect(result.activeDate).toBe("2026-11-19");
+});
+
 test("configure applies as one transaction", async ({ page }) => {
   await page.goto("/demo/index.html");
   const events = await page.evaluate(async () => {

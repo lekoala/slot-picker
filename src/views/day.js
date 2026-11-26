@@ -1,6 +1,7 @@
 import { toUtcDate } from "../date.js";
 import { slotValue } from "../model.js";
 import {
+  dateTimeFormat,
   dayEmpty,
   escapeAttr,
   escapeHtml,
@@ -32,13 +33,13 @@ export function renderDay({
   messages,
   locale,
 }) {
-  const formatterStripDay = new Intl.DateTimeFormat(locale, { weekday: "short", ...UTC_FORMAT });
-  const formatterStripDate = new Intl.DateTimeFormat(locale, {
+  const formatterStripDay = dateTimeFormat(locale, { weekday: "short", ...UTC_FORMAT });
+  const formatterStripDate = dateTimeFormat(locale, {
     day: "numeric",
     month: "short",
     ...UTC_FORMAT,
   });
-  const formatterPanelDay = new Intl.DateTimeFormat(locale, {
+  const formatterPanelDay = dateTimeFormat(locale, {
     weekday: "long",
     day: "numeric",
     month: "long",

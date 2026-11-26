@@ -2,6 +2,11 @@ import { addDays, compareDates, isDateValue, weekdayIndex } from "./date.js";
 
 const TIME_RE = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
+/** @param {string} a @param {string} b */
+function compareTimes(a, b) {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 /**
  * Default width-to-capacity ladder for `responsive` projection.
  * Resolved against the component's own inline size, never the viewport.
@@ -16,6 +21,21 @@ export const RESPONSIVE_BREAKPOINTS = Object.freeze([
   Object.freeze({ minWidth: 260, dayCount: 2 }),
   Object.freeze({ minWidth: 0, dayCount: 1 }),
 ]);
+
+/**
+ * Hard ceiling for a projection, mirroring the public `dayCount` setter.
+ * It also keeps exported projection helpers from walking an unbounded range.
+ */
+export const MAX_DAY_COUNT = 14;
+
+/**
+ * @param {number} dayCount
+ * @param {number} minimum
+ */
+function clampDayCount(dayCount, minimum) {
+  const count = Math.trunc(Number(dayCount) || 0);
+  return Math.max(minimum, Math.min(MAX_DAY_COUNT, count));
+}
 
 /**
  * `tone` is a neutral presentation token surfaced as `data-tone`; the core
@@ -77,7 +97,7 @@ export function normalizeDays(input) {
           }
           // A slot cannot end before it starts: a reversed interval is a
           // source bug, never silently rendered.
-          if (slot.end && slot.end.localeCompare(slot.start) <= 0) {
+          if (slot.end && compareTimes(slot.end, slot.start) <= 0) {
             throw new TypeError(`Invalid slot end on ${day.date}`);
           }
           if (slot.disabled !== undefined && typeof slot.disabled !== "boolean") {
@@ -97,7 +117,7 @@ export function normalizeDays(input) {
           seenStarts.add(slot.start);
           return { ...slot };
         })
-        .sort((a, b) => a.start.localeCompare(b.start));
+        .sort((a, b) => compareTimes(a.start, b.start));
 
       // An invalid notice is a source bug like any other invalid field:
       // it throws instead of silently disappearing from the projection.
@@ -127,20 +147,31 @@ export function normalizeDays(input) {
         ...(notice ? { notice } : {}),
       };
     })
-    .sort((a, b) => a.date.localeCompare(b.date));
+    .sort((a, b) => compareDates(a.date, b.date));
+}
+
+/**
+ * An unknown date still needs a renderable day shape. It is implicitly open
+ * with no availability, never closed and never noticed.
+ * @param {string} date
+ * @returns {SlotDay}
+ */
+function emptyDay(date) {
+  return { date, slots: [] };
 }
 
 /**
  * Fill missing days so an empty day remains visible.
  * The projected dates decide which columns exist; loaded data never does.
+ * `days` is expected to be normalized already at the data boundary: this is a
+ * pure join, so a render never re-validates and re-copies the whole source.
  * @param {SlotDay[]} days
  * @param {string[]} dates
  */
 export function visibleDays(days, dates) {
-  const normalized = normalizeDays(days);
-  const byDate = new Map(normalized.map((day) => [day.date, day]));
+  const byDate = new Map(days.map((day) => [day.date, day]));
 
-  return dates.map((date) => byDate.get(date) ?? { date, slots: [] });
+  return dates.map((date) => byDate.get(date) ?? emptyDay(date));
 }
 
 /**
@@ -235,6 +266,7 @@ function walk(from, count, hidden, step, bound) {
  * civil envelope instead of eating a column, so at equal width and bounds a
  * window always keeps its capacity. Only `min`/`max` can return fewer dates
  * than requested, because the interval itself holds too few projectable days.
+ * The count is capped at `MAX_DAY_COUNT`, mirroring the component setter.
  * @param {string} start
  * @param {number} dayCount
  * @param {readonly number[]} [hiddenDays]
@@ -243,7 +275,7 @@ function walk(from, count, hidden, step, bound) {
  * @returns {string[]}
  */
 export function projectDates(start, dayCount, hiddenDays = [], min = "", max = "") {
-  const count = Math.max(0, Math.trunc(Number(dayCount) || 0));
+  const count = clampDayCount(dayCount, 0);
   if (!count || !isDateValue(start) || !isValidRange(min, max)) return [];
   const hidden = normalizeHiddenDays(hiddenDays);
   const from = clampDate(start, min, max);
@@ -285,7 +317,7 @@ export function normalizeBreakpoints(breakpoints) {
   return breakpoints
     .map((breakpoint) => ({
       minWidth: Math.max(0, Number(breakpoint?.minWidth) || 0),
-      dayCount: Math.max(1, Math.min(14, Number(breakpoint?.dayCount) || 1)),
+      dayCount: Math.max(1, Math.min(MAX_DAY_COUNT, Number(breakpoint?.dayCount) || 1)),
     }))
     .sort((a, b) => b.minWidth - a.minWidth);
 }
@@ -331,7 +363,7 @@ export function clampStart(start, min, max, dayCount, hiddenDays = []) {
  */
 export function ensureVisible(start, dayCount, date, min, max, hiddenDays = []) {
   const hidden = normalizeHiddenDays(hiddenDays);
-  const count = Math.max(1, dayCount);
+  const count = clampDayCount(dayCount, 1);
   const dates = projectDates(start, count, hidden, min, max);
   if (!dates.length) return clampDate(start, min, max);
   const first = dates[0];

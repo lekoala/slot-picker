@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { addDays, daysBetween, isDateValue, rangeEnd } from "../../src/date.js";
+import { addDays, compareDates, daysBetween, isDateValue, rangeEnd } from "../../src/date.js";
 
 describe("civil date helpers", () => {
   test("addDays crosses month boundaries", () => {
@@ -25,5 +25,11 @@ describe("civil date helpers", () => {
   test("addDays keeps exact years below 100 across boundaries", () => {
     expect(addDays("0005-01-01", -1)).toBe("0004-12-31");
     expect(addDays("0004-12-31", 1)).toBe("0005-01-01");
+  });
+
+  test("compareDates orders canonical dates without locale collation", () => {
+    expect(compareDates("2026-11-17", "2026-11-18")).toBe(-1);
+    expect(compareDates("2026-11-18", "2026-11-17")).toBe(1);
+    expect(compareDates("2026-11-17", "2026-11-17")).toBe(0);
   });
 });

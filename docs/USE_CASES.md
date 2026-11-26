@@ -119,7 +119,7 @@ Acceptance:
 
 - `layout` is `columns` (default) or `day`; the consumer chooses it explicitly;
 - there is no automatic `columns` to `day` breakpoint on viewport size;
-- `activeDate` is the last day explicitly targeted by the user (day click or slot activation);
+- `activeDate` is the consulted day: set by a day click, a slot activation, or an external `activeDate` / `active-date` write, which resolves against the current projection and publishes `daychange` once;
 - `activeDate` resolution is civil-only: absent maps to the first projected day, before-range maps to it, after-range maps to the last projected day, and a hidden weekday maps to the next projected column; loaded slots never influence it;
 - activating a slot sets `activeDate` to that slot's day before dispatching `slotactivate`;
 - changing `layout` preserves `activeDate` and `value`;

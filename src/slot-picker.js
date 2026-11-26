@@ -7,6 +7,7 @@ import {
   ensureVisible,
   hasDayContent,
   isSlotValue,
+  MAX_DAY_COUNT,
   moveFocus,
   normalizeBreakpoints,
   normalizeDays,
@@ -111,6 +112,8 @@ export class SlotPickerElement extends HTMLElement {
   #renderQueued = false;
   #initializing = false;
   #batching = false;
+  #connected = false;
+  #settingActiveDate = false;
   #pendingFocus = "";
   /** @type {ResizeObserver|null} */
   #resizeObserver = null;
@@ -137,6 +140,7 @@ export class SlotPickerElement extends HTMLElement {
   }
 
   connectedCallback() {
+    this.#connected = true;
     this.#initializing = true;
     if (!this.hasAttribute("start")) this.setAttribute("start", todayValue());
     if (!this.hasAttribute("day-count")) this.setAttribute("day-count", "5");
@@ -167,6 +171,7 @@ export class SlotPickerElement extends HTMLElement {
   }
 
   disconnectedCallback() {
+    this.#connected = false;
     this.#sourceController.abort();
     this.#resizeObserver?.disconnect();
     // Reconnecting is a fresh load, even when the range is unchanged.
@@ -181,6 +186,12 @@ export class SlotPickerElement extends HTMLElement {
   attributeChangedCallback(name, oldValue, newValue) {
     if (oldValue === newValue) return;
     if (this.#initializing || this.#batching) return;
+    if (name === "active-date") {
+      // Internal writes already publish their own event, and a detached
+      // element waits for `connectedCallback` to reconcile and publish.
+      if (this.#connected && !this.#settingActiveDate) this.#adoptActiveDate();
+      return;
+    }
     if (RANGE_ATTRIBUTES.has(name)) this.#reconcile({ pinActive: name !== "start" });
     else this.#queueRender();
   }
@@ -201,13 +212,13 @@ export class SlotPickerElement extends HTMLElement {
 
   get dayCount() {
     const value = Number.parseInt(this.getAttribute("day-count") || "5", 10);
-    return Number.isFinite(value) ? Math.max(1, Math.min(14, value)) : 5;
+    return Number.isFinite(value) ? Math.max(1, Math.min(MAX_DAY_COUNT, value)) : 5;
   }
 
   /** @param {number} value */
   set dayCount(value) {
     const numeric = Number(value);
-    const next = Number.isFinite(numeric) ? Math.max(1, Math.min(14, Math.trunc(numeric))) : 5;
+    const next = Number.isFinite(numeric) ? Math.max(1, Math.min(MAX_DAY_COUNT, Math.trunc(numeric))) : 5;
     this.setAttribute("day-count", String(next));
   }
 
@@ -699,6 +710,11 @@ export class SlotPickerElement extends HTMLElement {
     this.#lastRange = range;
     this.#lastActiveDate = active;
     this.#queueRender();
+    // Attribute changes during upgrade still prime the resolved range and the
+    // deferred render (the responsive first load relies on both), but a
+    // disconnected element must not emit or touch a source. The render
+    // microtask re-checks `isConnected`; `connectedCallback` publishes state.
+    if (!this.#connected) return;
     if (!first && rangeChanged) this.dispatchEvent(new CustomEvent("rangechange", { detail: range }));
     if (!first && activeChanged) {
       this.dispatchEvent(new CustomEvent("daychange", { detail: { activeDate: active } }));
@@ -744,6 +760,35 @@ export class SlotPickerElement extends HTMLElement {
     return content ? content.getBoundingClientRect().width : null;
   }
 
+  /**
+   * Adopt an external `active-date` write: resolve it against the current
+   * projection, persist the resolved value, and publish `daychange` once.
+   * Without this, an external change would stay silent and leave
+   * `#lastActiveDate` stale, so the next unrelated commit could emit a late,
+   * misleading `daychange`.
+   */
+  #adoptActiveDate() {
+    const dates = this.#projection();
+    const raw = this.getAttribute("active-date") || "";
+    const resolved = dates.length ? resolveActiveDate(dates, raw) : "";
+    const previous = this.#lastActiveDate;
+    if (dates.length && raw !== resolved) {
+      // Keep the attribute equal to the resolved public state. The nested
+      // callback is ignored; this method owns the publication.
+      this.#settingActiveDate = true;
+      try {
+        this.setAttribute("active-date", resolved);
+      } finally {
+        this.#settingActiveDate = false;
+      }
+    }
+    this.#lastActiveDate = resolved;
+    this.#queueRender();
+    if (previous !== null && resolved !== previous) {
+      this.dispatchEvent(new CustomEvent("daychange", { detail: { activeDate: resolved } }));
+    }
+  }
+
   /** @param {string} date @param {boolean} emit */
   #setActiveDate(date, emit = true) {
     const dates = this.#projection();
@@ -751,8 +796,14 @@ export class SlotPickerElement extends HTMLElement {
     const resolved = resolveActiveDate(dates, date);
     const before = this.activeDate;
     if (resolved === before && this.getAttribute("active-date") === resolved) return;
-    this.setAttribute("active-date", resolved);
+    this.#settingActiveDate = true;
+    try {
+      this.setAttribute("active-date", resolved);
+    } finally {
+      this.#settingActiveDate = false;
+    }
     this.#lastActiveDate = resolved;
+    this.#queueRender();
     if (emit && resolved !== before) {
       this.dispatchEvent(new CustomEvent("daychange", { detail: { activeDate: resolved } }));
     }
@@ -841,6 +892,24 @@ export class SlotPickerElement extends HTMLElement {
    */
   #focusFallback() {
     return this.querySelector('.sp-slot[tabindex="0"]') ?? this.querySelector('.sp-strip-day[tabindex="0"]');
+  }
+
+  /**
+   * A keyboard move only changes the roving tab stop: the slot markup,
+   * selection and active day are unchanged, so rebuilding the projection would
+   * be wasted layout work. The next full render still derives its tab stop
+   * from `#focusedValue`, so the two paths stay consistent.
+   * @param {string} value
+   */
+  #moveRovingFocus(value) {
+    const next = this.querySelector(`.sp-slot[data-value="${CSS.escape(value)}"]`);
+    if (!(next instanceof HTMLButtonElement)) return;
+    this.#focusedValue = value;
+    for (const tabbed of this.querySelectorAll('.sp-slot[tabindex="0"]')) {
+      if (tabbed instanceof HTMLElement) tabbed.tabIndex = -1;
+    }
+    next.tabIndex = 0;
+    next.focus({ preventScroll: true });
   }
 
   /**
@@ -1066,10 +1135,7 @@ export class SlotPickerElement extends HTMLElement {
     const nextSlot = nextDay?.slots[next.slotIndex];
     if (!nextSlot || nextSlot.disabled) return;
 
-    const value = slotValue(nextDay.date, nextSlot.start);
-    this.#focusedValue = value;
-    this.#pendingFocus = `.sp-slot[data-value="${CSS.escape(value)}"]`;
-    this.#render();
+    this.#moveRovingFocus(slotValue(nextDay.date, nextSlot.start));
   }
 
   /** @param {KeyboardEvent} event */
@@ -1140,10 +1206,7 @@ export class SlotPickerElement extends HTMLElement {
 
     const next = enabled[nextPosition];
     if (!next) return;
-    const value = slotValue(active.date, next.slot.start);
-    this.#focusedValue = value;
-    this.#pendingFocus = `.sp-slot[data-value="${CSS.escape(value)}"]`;
-    this.#render();
+    this.#moveRovingFocus(slotValue(active.date, next.slot.start));
   }
 
   /** @param {HTMLButtonElement} button */

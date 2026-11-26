@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { renderColumns } from "../../src/views/columns.js";
 import { renderDay } from "../../src/views/day.js";
-import { noticeBlock, noticeIndicator, slotButton } from "../../src/views/shared.js";
+import { interpolate, noticeBlock, noticeIndicator, slotButton } from "../../src/views/shared.js";
 
 const MESSAGES = {
   oneSlot: "1 slot",
@@ -61,6 +61,14 @@ describe("day notice rendering", () => {
   test("the interactive indicator falls back to the label without a description", () => {
     const html = noticeIndicator({ interactive: true, dayIndex: 0, label: "Unavailable" });
     expect(html).toContain('aria-label="Unavailable"');
+  });
+});
+
+describe("message interpolation", () => {
+  test("replaces every known placeholder and leaves unknown keys visible", () => {
+    expect(interpolate("{n} slots, {n} times", { n: 3 })).toBe("3 slots, 3 times");
+    expect(interpolate("From {start} to {end}", { start: "A", end: "B" })).toBe("From A to B");
+    expect(interpolate("{start} to {missing}", { start: "A" })).toBe("A to {missing}");
   });
 });
 

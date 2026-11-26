@@ -8,6 +8,37 @@ import { slotValue } from "../model.js";
 /** @type {Record<string,string>} */
 const ENTITIES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 
+/** @type {Map<string,Intl.DateTimeFormat>} */
+const FORMATTERS = new Map();
+
+/**
+ * Formatter construction is expensive and the views ask for the same few
+ * locale/option pairs on every render. Cache them by locale and options.
+ * @param {string} locale
+ * @param {Intl.DateTimeFormatOptions} options
+ */
+export function dateTimeFormat(locale, options) {
+  const key = `${locale}|${JSON.stringify(options)}`;
+  let formatter = FORMATTERS.get(key);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, options);
+    FORMATTERS.set(key, formatter);
+  }
+  return formatter;
+}
+
+/**
+ * Replace `{key}` placeholders in one pass. Unknown keys stay untouched so a
+ * translation typo remains visible instead of rendering "undefined".
+ * @param {string} template
+ * @param {Record<string,string|number>} values
+ */
+export function interpolate(template, values) {
+  return template.replace(/\{(\w+)\}/g, (placeholder, key) =>
+    Object.hasOwn(values, key) ? String(values[key]) : placeholder,
+  );
+}
+
 /** @param {string} value */
 export function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, /** @param {string} char */ (char) => ENTITIES[char] || char);
@@ -111,7 +142,7 @@ export function dayEmpty(message) {
 export function slotCountText(count, messages) {
   if (count <= 0) return "–";
   if (count === 1) return messages.oneSlot;
-  return messages.manySlots.replace("{n}", String(count));
+  return interpolate(messages.manySlots, { n: count });
 }
 
 /**
@@ -130,14 +161,15 @@ export function rangeEmpty({ start, end, invalid, canNext, nextAvailability, loc
   const showDescription = !invalid && Boolean(start);
   let description = "";
   if (showDescription) {
-    const formatter = new Intl.DateTimeFormat(locale, {
+    const formatter = dateTimeFormat(locale, {
       day: "numeric",
       month: "short",
       timeZone: "UTC",
     });
-    const text = messages.rangeEmptyDescription
-      .replace("{start}", formatter.format(toUtcDate(start)))
-      .replace("{end}", formatter.format(toUtcDate(end)));
+    const text = interpolate(messages.rangeEmptyDescription, {
+      start: formatter.format(toUtcDate(start)),
+      end: formatter.format(toUtcDate(end)),
+    });
     description = `<p class="sp-range-empty-description">${escapeHtml(text)}</p>`;
   }
   const actions = [];

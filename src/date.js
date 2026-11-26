@@ -40,9 +40,14 @@ export function addDays(value, amount) {
   ].join("-");
 }
 
-/** @param {string} a @param {string} b */
+/**
+ * Plain code-unit comparison. Canonical dates are fixed-width ASCII, so this
+ * is both exact and cheaper than a locale-aware collation in projection loops.
+ * @param {string} a
+ * @param {string} b
+ */
 export function compareDates(a, b) {
-  return a.localeCompare(b);
+  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 /**
